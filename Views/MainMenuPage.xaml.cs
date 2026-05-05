@@ -1,4 +1,5 @@
 using AAPlus.Renderers;
+using AAPlus.Services;
 using AAPlus.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
@@ -9,16 +10,17 @@ namespace AAPlus.Views;
 public partial class MainMenuPage : ContentPage
 {
     private readonly MainMenuViewModel _vm;
+    private readonly SaveManager _save;
     private readonly MainMenuRenderer _renderer = new();
     private readonly Stopwatch _sw = new();
-    private float _lastTime;
     private IDispatcherTimer? _timer;
 
-    public MainMenuPage(MainMenuViewModel vm)
+    public MainMenuPage(MainMenuViewModel vm, SaveManager save)
     {
         InitializeComponent();
         BindingContext = vm;
         _vm = vm;
+        _save = save;
     }
 
     protected override void OnAppearing()
@@ -26,16 +28,10 @@ public partial class MainMenuPage : ContentPage
         base.OnAppearing();
         _vm.LoadData();
         _sw.Restart();
-        _lastTime = 0;
 
         _timer = Dispatcher.CreateTimer();
         _timer.Interval = TimeSpan.FromMilliseconds(16);
-        _timer.Tick += (_, _) =>
-        {
-            float t = (float)_sw.Elapsed.TotalSeconds;
-            _lastTime = t;
-            MenuCanvas.InvalidateSurface();
-        };
+        _timer.Tick += (_, _) => MenuCanvas.InvalidateSurface();
         _timer.Start();
     }
 
@@ -62,15 +58,21 @@ public partial class MainMenuPage : ContentPage
         float scale = (float)DeviceDisplay.MainDisplayInfo.Density;
         float x = e.Location.X / scale, y = e.Location.Y / scale;
 
-        var hit = _renderer.HitTest(x, y);
-        switch (hit)
+        switch (_renderer.HitTest(x, y))
         {
             case MenuButton.Play:
+                // Yeni oyun — flag ÖNCE set et
+                _save.ContinueRequested = false;
+                _save.ClearActiveGame();
                 await Shell.Current.GoToAsync("//PinGamePage");
                 break;
+
             case MenuButton.Continue:
-                await Shell.Current.GoToAsync($"//PinGamePage?level={_vm.LastLevel}");
+                // DEVAM ET — flag ÖNCE set et, sonra navigate
+                _save.ContinueRequested = true;
+                await Shell.Current.GoToAsync("//PinGamePage");
                 break;
+
             case MenuButton.Settings:
                 _vm.ToggleSound();
                 break;

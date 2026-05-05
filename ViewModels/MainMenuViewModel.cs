@@ -1,39 +1,45 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using AAPlus.Services;
 
 namespace AAPlus.ViewModels;
 
 public partial class MainMenuViewModel : ObservableObject
 {
-    private readonly GameDataService _data;
+    private readonly SaveManager _save;
 
     [ObservableProperty] private int _highScore;
     [ObservableProperty] private int _bestLevel;
-    [ObservableProperty] private int _lastLevel;
     [ObservableProperty] private int _totalGames;
     [ObservableProperty] private bool _soundEnabled;
+    [ObservableProperty] private bool _hasSavedGame;
+    [ObservableProperty] private int _savedLevel;
+    [ObservableProperty] private int _savedPinsRemaining;
 
-    public MainMenuViewModel(GameDataService data)
+    public MainMenuViewModel(SaveManager save)
     {
-        _data = data;
+        _save = save;
         LoadData();
     }
 
     public void LoadData()
     {
-        HighScore = _data.GetHighScore();
-        BestLevel = _data.GetBestLevel();
-        LastLevel = _data.GetLastLevel();
-        TotalGames = _data.GetTotalGames();
-        SoundEnabled = _data.IsSoundEnabled();
+        var d = _save.Data;
+        HighScore = d.HighScore;
+        BestLevel = d.BestLevel;
+        TotalGames = d.TotalGames;
+        SoundEnabled = d.SoundEnabled;
+        HasSavedGame = _save.HasSavedGame;
+        SavedLevel = d.CurrentLevel;
+        SavedPinsRemaining = d.PinsRemaining;
     }
 
     public void ToggleSound()
     {
         SoundEnabled = !SoundEnabled;
-        _data.SetSoundEnabled(SoundEnabled);
+        _save.Data.SoundEnabled = SoundEnabled;
+        _ = _save.SaveAsync();
     }
 
-    public bool CanContinue => LastLevel > 1;
+    public bool CanContinue => HasSavedGame;
+    public int LastLevel => SavedLevel;
 }

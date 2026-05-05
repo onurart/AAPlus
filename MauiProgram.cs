@@ -22,11 +22,12 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-        // Services
-        builder.Services.AddSingleton<GameDataService>();
+        // Services — Singleton (tek instance, tüm sayfalar paylaşır)
+        builder.Services.AddSingleton<SaveManager>();
         builder.Services.AddSingleton<AudioHapticService>();
+        builder.Services.AddSingleton<GameDataService>();
 
-        // ViewModels
+        // ViewModels — Transient (her sayfa açılışında yeni)
         builder.Services.AddTransient<MainMenuViewModel>();
         builder.Services.AddTransient<PinGameViewModel>();
 

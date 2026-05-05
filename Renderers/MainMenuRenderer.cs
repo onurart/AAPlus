@@ -107,7 +107,10 @@ public class MainMenuRenderer
                 IsAntialias = true, Color = White, TextSize = 14,
                 TextAlign = SKTextAlign.Center
             };
-            c.DrawText($"DEVAM ET  ›  Level {vm.LastLevel}", cx, btnY + 28, ct);
+            string info = vm.SavedPinsRemaining > 0
+                ? $"Level {vm.SavedLevel}  ·  {vm.SavedPinsRemaining} iğne kaldı"
+                : $"Level {vm.SavedLevel}";
+            c.DrawText($"DEVAM ET  ›  {info}", cx, btnY + 28, ct);
             btnY += 56;
         }
 

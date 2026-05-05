@@ -15,8 +15,8 @@ public class PinGameEngine
     public const int MaxLevel = 500;
 
     // ─── İğne Sayıları ──────────────────────────────────────
-    public int PinsToPlace { get; private set; }
-    public int PinsRemaining { get; private set; }
+    public int PinsToPlace { get; internal set; }
+    public int PinsRemaining { get; internal set; }
 
     // ─── Dönüş ──────────────────────────────────────────────
     public float RotationAngle { get; private set; }
@@ -45,7 +45,7 @@ public class PinGameEngine
     // ─── Durum ──────────────────────────────────────────────
     public GameState State { get; private set; } = GameState.Ready;
     public bool IsPaused { get; private set; }
-    public int Score { get; private set; }
+    public int Score { get; set; }
     public int HighScore { get; set; }
 
     // ─── Sabitler ───────────────────────────────────────────
@@ -312,6 +312,35 @@ public class PinGameEngine
     {
         if (CurrentLevel < MaxLevel) StartLevel(CurrentLevel + 1);
         else State = GameState.Victory;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  STATE RESTORE (kayıt sisteminden yükleme)
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>Kayıtlı oyun durumunu tam olarak geri yükler.</summary>
+    public void RestoreState(
+        int level, int score, int highScore,
+        List<float> placedPins, List<float> prePlacedPins,
+        float rotationAngle, int pinsRemaining)
+    {
+        // Seviyeyi başlat (config'i oluşturur)
+        StartLevel(level);
+
+        // Üzerine kayıtlı state'i yaz
+        Score = score;
+        HighScore = highScore;
+        RotationAngle = rotationAngle;
+
+        PlacedPins.Clear();
+        PlacedPins.AddRange(placedPins);
+
+        PrePlacedPins.Clear();
+        PrePlacedPins.AddRange(prePlacedPins);
+
+        PinsRemaining = pinsRemaining;
+        State = GameState.Playing;
+        IsPinFlying = false;
     }
 }
 

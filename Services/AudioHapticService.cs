@@ -2,30 +2,34 @@ namespace AAPlus.Services;
 
 public class AudioHapticService
 {
-    private readonly GameDataService _data;
-    public AudioHapticService(GameDataService data) => _data = data;
+    private readonly SaveManager _save;
+
+    public AudioHapticService(SaveManager save) => _save = save;
+
+    private bool HapticOn => _save.Data.HapticEnabled;
+    private bool SoundOn => _save.Data.SoundEnabled;
 
     public void PlayTap()
     {
-        if (!_data.IsHapticEnabled()) return;
+        if (!HapticOn) return;
         try { HapticFeedback.Default.Perform(HapticFeedbackType.Click); } catch { }
     }
 
     public void PlayDotPlaced()
     {
-        if (!_data.IsHapticEnabled()) return;
+        if (!HapticOn) return;
         try { HapticFeedback.Default.Perform(HapticFeedbackType.Click); } catch { }
     }
 
     public void PlayGameOver()
     {
-        if (!_data.IsHapticEnabled()) return;
+        if (!HapticOn) return;
         try { HapticFeedback.Default.Perform(HapticFeedbackType.LongPress); } catch { }
     }
 
     public void PlayLevelComplete()
     {
-        if (!_data.IsHapticEnabled()) return;
+        if (!HapticOn) return;
         try { HapticFeedback.Default.Perform(HapticFeedbackType.Click); } catch { }
     }
 }

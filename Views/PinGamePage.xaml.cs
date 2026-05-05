@@ -1,4 +1,5 @@
 using AAPlus.Renderers;
+using AAPlus.Services;
 using AAPlus.ViewModels;
 using SkiaSharp;
 using SkiaSharp.Views.Maui;
@@ -32,7 +33,7 @@ public partial class PinGamePage : ContentPage
         _lastTime = 0;
 
         _timer = Dispatcher.CreateTimer();
-        _timer.Interval = TimeSpan.FromMilliseconds(16); // ~60 FPS
+        _timer.Interval = TimeSpan.FromMilliseconds(16);
         _timer.Tick += OnTick;
         _timer.Start();
     }
@@ -41,6 +42,8 @@ public partial class PinGamePage : ContentPage
     {
         base.OnDisappearing();
         _timer?.Stop();
+        // Sayfadan çıkarken kaydet
+        _vm.AutoSave();
     }
 
     private void OnTick(object? sender, EventArgs e)
@@ -73,7 +76,7 @@ public partial class PinGamePage : ContentPage
         float x = e.Location.X / scale;
         float y = e.Location.Y / scale;
 
-        // Duraklatma butonuna basıldı mı?
+        // Pause butonu
         if (_vm.Engine.State == GameState.Playing && _renderer.IsPauseHit(x, y, _lastSize))
         {
             _vm.PauseTapped();

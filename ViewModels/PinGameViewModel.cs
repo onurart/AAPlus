@@ -4,28 +4,37 @@ using AAPlus.Services;
 
 namespace AAPlus.ViewModels;
 
-[QueryProperty(nameof(StartLevel), "level")]
 public partial class PinGameViewModel : ObservableObject
 {
-    private readonly GameDataService _data;
+    private readonly SaveManager _save;
     private readonly AudioHapticService _audio;
 
     public PinGameEngine Engine { get; } = new();
-
-    [ObservableProperty] private string? _startLevel;
 
     private float _levelDelay;
     private const float LevelTransition = 0.6f;
     private bool _init;
 
-    public PinGameViewModel(GameDataService data, AudioHapticService audio)
+    public PinGameViewModel(SaveManager save, AudioHapticService audio)
     {
-        _data = data;
+        _save = save;
         _audio = audio;
 
-        // Engine event'lerini dinle
         Engine.OnPinPlaced += () => _audio.PlayDotPlaced();
-        Engine.OnCollision += () => { _audio.PlayGameOver(); SaveProgress(); };
+        Engine.OnCollision += () =>
+        {
+            _audio.PlayGameOver();
+            // Game over — seviyeyi kaydet, DEVAM ET ile tekrar deneyebilsin
+            _save.Data.HasActiveGame = true;
+            _save.Data.CurrentLevel = Engine.CurrentLevel;
+            _save.Data.PinsRemaining = 0;
+            _save.Data.PlacedPinAngles.Clear();
+            _save.Data.PrePlacedPinAngles.Clear();
+            _save.Data.Score = Engine.Score;
+            _save.Data.HighScore = Engine.HighScore;
+            _save.Data.BestLevel = Math.Max(_save.Data.BestLevel, Engine.CurrentLevel);
+            _ = _save.SaveAsync();
+        };
         Engine.OnLevelCleared += () => _audio.PlayLevelComplete();
     }
 
@@ -34,44 +43,67 @@ public partial class PinGameViewModel : ObservableObject
         if (_init) return;
         _init = true;
 
-        int level = 1;
-        if (!string.IsNullOrEmpty(StartLevel) && int.TryParse(StartLevel, out int p))
-            level = p;
+        Engine.HighScore = _save.Data.HighScore;
 
-        Engine.HighScore = _data.GetHighScore();
-        Engine.StartLevel(level);
+        // SaveManager'daki flag'i oku (navigasyondan ÖNCE set edildi)
+        bool continueMode = _save.ContinueRequested;
+        _save.ContinueRequested = false; // flag'i temizle
+
+        if (continueMode && _save.HasSavedGame)
+        {
+            var d = _save.Data;
+            if (d.PlacedPinAngles.Count > 0 && d.PinsRemaining > 0)
+            {
+                // Uygulama kapatılmıştı — tam devam (iğne pozisyonları dahil)
+                _save.RestoreGameState(Engine);
+                System.Diagnostics.Debug.WriteLine(
+                    $"[Game] DEVAM: Level {d.CurrentLevel}, {d.PinsRemaining} iğne kaldı, {d.PlacedPinAngles.Count} saplanmış");
+            }
+            else
+            {
+                // Game Over sonrası — aynı seviyeyi baştan başlat
+                Engine.StartLevel(d.CurrentLevel);
+                System.Diagnostics.Debug.WriteLine(
+                    $"[Game] DEVAM: Level {d.CurrentLevel} baştan");
+            }
+        }
+        else
+        {
+            // Yeni oyun
+            Engine.StartLevel(1);
+            Engine.Score = 0;
+            System.Diagnostics.Debug.WriteLine("[Game] YENİ OYUN: Level 1");
+        }
     }
 
     [RelayCommand]
-    private async void Tap()
+    private async Task Tap()
     {
         switch (Engine.State)
         {
             case GameState.Playing:
                 if (Engine.IsPaused)
-                    Engine.TogglePause(); // Devam et
+                    Engine.TogglePause();
                 else
                     Engine.Shoot();
                 _audio.PlayTap();
                 break;
 
             case GameState.GameOver:
-                SaveProgress();
-                _data.IncrementTotalGames();
+                _save.Data.TotalGames++;
+                await _save.SaveAsync();
                 await Shell.Current.GoToAsync("//MainMenuPage");
                 break;
 
             case GameState.Victory:
-                SaveProgress();
+                _save.Data.TotalGames++;
+                await _save.SaveAsync();
                 await Shell.Current.GoToAsync("//MainMenuPage");
                 break;
         }
     }
 
-    public void PauseTapped()
-    {
-        Engine.TogglePause();
-    }
+    public void PauseTapped() => Engine.TogglePause();
 
     public event Action? OnLevelTransition;
 
@@ -87,17 +119,18 @@ public partial class PinGameViewModel : ObservableObject
                 _levelDelay = 0;
                 Engine.NextLevel();
                 OnLevelTransition?.Invoke();
-                if (Engine.CurrentLevel % 5 == 0)
-                    SaveProgress();
+                AutoSave();
             }
         }
     }
 
-    private void SaveProgress()
+    public void AutoSave()
     {
-        _data.SetHighScore(Engine.HighScore);
-        _data.SetBestLevel(Engine.CurrentLevel);
-        _data.SetLastLevel(Engine.CurrentLevel);
+        if (Engine.State == GameState.Playing || Engine.State == GameState.LevelComplete)
+        {
+            _save.CaptureGameState(Engine);
+            _ = _save.SaveAsync();
+        }
     }
 
     public void Reset()
