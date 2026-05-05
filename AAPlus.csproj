@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net10.0-android</TargetFrameworks>
+		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+
+		<OutputType>Exe</OutputType>
+		<RootNamespace>AAPlus</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<!-- Google Play Store Bilgileri -->
+		<ApplicationTitle>AAPlus</ApplicationTitle>
+		<ApplicationId>com.aaplus.game</ApplicationId>
+		<ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
+		<ApplicationVersion>1</ApplicationVersion>
+
+		<!-- Android: Google Play minimum API 24, target API 35 -->
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+
+		<WindowsPackageType>None</WindowsPackageType>
+	</PropertyGroup>
+
+	<!-- Android Release: AAB + Signing -->
+	<PropertyGroup Condition="$(Configuration) == 'Release' And $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<AndroidPackageFormat>aab</AndroidPackageFormat>
+		<AndroidKeyStore>true</AndroidKeyStore>
+		<AndroidSigningKeyStore>aaplus.keystore</AndroidSigningKeyStore>
+		<AndroidSigningKeyAlias>aaplus</AndroidSigningKeyAlias>
+		<AndroidSigningStorePass>env:KEYSTORE_PASSWORD</AndroidSigningStorePass>
+		<AndroidSigningKeyPass>env:KEYSTORE_PASSWORD</AndroidSigningKeyPass>
+		<PublishTrimmed>true</PublishTrimmed>
+		<RunAOTCompilation>true</RunAOTCompilation>
+	</PropertyGroup>
+
+	<!-- Mac Catalyst: Debug signing -->
+	<PropertyGroup Condition="$(Configuration) == 'Debug' And ($([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios' Or $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst')">
+		<CodesignRequireProvisioningProfile>false</CodesignRequireProvisioningProfile>
+		<CodesignKey>-</CodesignKey>
+		<CodesignProvision></CodesignProvision>
+		<EnableCodeSigning>true</EnableCodeSigning>
+	</PropertyGroup>
+
+	<!-- xattr temizle (Mac build) -->
+	<Target Name="StripExtendedAttributes" BeforeTargets="_CodesignAppBundle;_CodesignNativeLibraries">
+		<Exec Command="find '$(OutputPath)' -name '*.app' -exec xattr -cr {} + 2>/dev/null; xattr -cr '$(OutputPath)' 2>/dev/null" ContinueOnError="true" />
+	</Target>
+
+	<ItemGroup>
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#1A1A1A" />
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#FAFAFA" BaseSize="128,128" />
+		<MauiImage Include="Resources\Images\*" />
+		<MauiFont Include="Resources\Fonts\*" />
+		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="CommunityToolkit.Maui" Version="14.1.0" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.41" />
+		<PackageReference Include="Microsoft.Maui.Core" Version="10.0.41" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.2" />
+	</ItemGroup>
+
+</Project>
