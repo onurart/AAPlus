@@ -12,32 +12,34 @@ public partial class PinGameViewModel : ObservableObject
 
     public PinGameEngine Engine { get; } = new();
 
-    [ObservableProperty] private bool _isPlaying;
     [ObservableProperty] private string? _startLevel;
 
-    private float _levelCompleteDelay;
-    private const float LevelTransitionTime = 0.6f;
-    private bool _initialized;
+    private float _levelDelay;
+    private const float LevelTransition = 0.6f;
+    private bool _init;
 
     public PinGameViewModel(GameDataService data, AudioHapticService audio)
     {
         _data = data;
         _audio = audio;
-        Engine.HighScore = _data.GetHighScore();
+
+        // Engine event'lerini dinle
+        Engine.OnPinPlaced += () => _audio.PlayDotPlaced();
+        Engine.OnCollision += () => { _audio.PlayGameOver(); SaveProgress(); };
+        Engine.OnLevelCleared += () => _audio.PlayLevelComplete();
     }
 
     public void Initialize()
     {
-        if (_initialized) return;
-        _initialized = true;
+        if (_init) return;
+        _init = true;
 
         int level = 1;
-        if (!string.IsNullOrEmpty(StartLevel) && int.TryParse(StartLevel, out int parsed))
-            level = parsed;
+        if (!string.IsNullOrEmpty(StartLevel) && int.TryParse(StartLevel, out int p))
+            level = p;
 
         Engine.HighScore = _data.GetHighScore();
         Engine.StartLevel(level);
-        IsPlaying = true;
     }
 
     [RelayCommand]
@@ -46,7 +48,10 @@ public partial class PinGameViewModel : ObservableObject
         switch (Engine.State)
         {
             case GameState.Playing:
-                Engine.ShootPin(280f);
+                if (Engine.IsPaused)
+                    Engine.TogglePause(); // Devam et
+                else
+                    Engine.Shoot();
                 _audio.PlayTap();
                 break;
 
@@ -63,30 +68,25 @@ public partial class PinGameViewModel : ObservableObject
         }
     }
 
+    public void PauseTapped()
+    {
+        Engine.TogglePause();
+    }
+
     public event Action? OnLevelTransition;
 
-    public void UpdateFrame(float deltaSeconds)
+    public void UpdateFrame(float dt)
     {
-        Engine.Update(deltaSeconds);
-
-        if (Engine.State == GameState.GameOver && _levelCompleteDelay == 0)
-        {
-            _audio.PlayGameOver();
-            SaveProgress();
-        }
+        Engine.Update(dt);
 
         if (Engine.State == GameState.LevelComplete)
         {
-            if (_levelCompleteDelay == 0)
-                _audio.PlayLevelComplete();
-
-            _levelCompleteDelay += deltaSeconds;
-            if (_levelCompleteDelay >= LevelTransitionTime)
+            _levelDelay += dt;
+            if (_levelDelay >= LevelTransition)
             {
-                _levelCompleteDelay = 0;
+                _levelDelay = 0;
                 Engine.NextLevel();
                 OnLevelTransition?.Invoke();
-
                 if (Engine.CurrentLevel % 5 == 0)
                     SaveProgress();
             }
@@ -100,9 +100,9 @@ public partial class PinGameViewModel : ObservableObject
         _data.SetLastLevel(Engine.CurrentLevel);
     }
 
-    public void ResetForNewGame()
+    public void Reset()
     {
-        _initialized = false;
-        _levelCompleteDelay = 0;
+        _init = false;
+        _levelDelay = 0;
     }
 }

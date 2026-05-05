@@ -4,50 +4,70 @@ using System.Collections.Generic;
 namespace AAPlus.Services;
 
 /// <summary>
-/// "aa" tarzı nokta ateşleme oyun motoru — 500 seviye, 5 zorluk kademesi.
+/// "aa" tarzı iğne saplama oyun motoru.
+/// İğneler alttan merkeze fırlatılır, daireye saplanır ve birlikte döner.
+/// Çarpışma = Game Over.
 /// </summary>
 public class PinGameEngine
 {
+    // ─── Seviye ──────────────────────────────────────────────
     public int CurrentLevel { get; private set; } = 1;
     public const int MaxLevel = 500;
-    public Difficulty CurrentDifficulty => GetDifficulty(CurrentLevel);
 
+    // ─── İğne Sayıları ──────────────────────────────────────
     public int PinsToPlace { get; private set; }
     public int PinsRemaining { get; private set; }
 
+    // ─── Dönüş ──────────────────────────────────────────────
     public float RotationAngle { get; private set; }
-    public float BaseRotationSpeed { get; private set; }
-    private float _currentRotationSpeed;
+    private float _baseSpeed;
+    private float _currentSpeed;
+
+    // Salınım (ileri seviyelerde)
     private bool _oscillating;
-    private float _oscillationTimer;
-    private float _oscillationFrequency;
-    private bool _reversingDirection;
+    private float _oscTimer;
+    private float _oscFreq;
+
+    // Yön değişimi (ileri seviyelerde)
+    private bool _reversing;
     private float _reverseTimer;
     private float _reverseInterval;
 
-    public List<float> PlacedPinAngles { get; } = new();
-    public List<float> PrePlacedPinAngles { get; } = new();
+    // ─── Saplanmış İğneler (açı listesi) ────────────────────
+    public List<float> PlacedPins { get; } = new();
+    public List<float> PrePlacedPins { get; } = new();
 
+    // ─── Fırlatılan İğne ────────────────────────────────────
     public bool IsPinFlying { get; private set; }
     public float FlyingPinY { get; private set; }
-    public float FlyingPinSpeed { get; } = 1800f;
+    private const float FlySpeed = 1800f;
 
+    // ─── Durum ──────────────────────────────────────────────
     public GameState State { get; private set; } = GameState.Ready;
+    public bool IsPaused { get; private set; }
     public int Score { get; private set; }
     public int HighScore { get; set; }
 
-    public const float CircleRadius = 45f;
-    public const float PinLength = 75f;
-    public const float PinHeadRadius = 12f;
-    public const float CollisionAngleThreshold = 0.22f;
+    // ─── Sabitler ───────────────────────────────────────────
+    public const float CircleRadius = 50f;
+    public const float PinLength = 70f;
+    public const float PinHeadRadius = 8f;
+    private const float CollisionThreshold = 0.20f;
 
-    private readonly Random _rand = new();
+    private readonly Random _rng = new();
+
+    // ─── Event'ler (ses/haptic için) ────────────────────────
+    public event Action? OnPinPlaced;
+    public event Action? OnCollision;
+    public event Action? OnLevelCleared;
 
     // ═══════════════════════════════════════════════════════════
-    //  ZORLUK SİSTEMİ
+    //  ZORLUK
     // ═══════════════════════════════════════════════════════════
 
-    public static Difficulty GetDifficulty(int level) => level switch
+    public Difficulty CurrentDifficulty => GetDifficulty(CurrentLevel);
+
+    public static Difficulty GetDifficulty(int lvl) => lvl switch
     {
         <= 50 => Difficulty.VeryEasy,
         <= 150 => Difficulty.Easy,
@@ -56,209 +76,237 @@ public class PinGameEngine
         _ => Difficulty.VeryHard
     };
 
-    public static string GetDifficultyName(Difficulty d) => d switch
+    public static string DifficultyName(Difficulty d) => d switch
     {
-        Difficulty.VeryEasy => "Çok Kolay",
-        Difficulty.Easy => "Kolay",
-        Difficulty.Medium => "Orta",
-        Difficulty.Hard => "Zor",
-        Difficulty.VeryHard => "Çok Zor",
+        Difficulty.VeryEasy => "ÇOK KOLAY",
+        Difficulty.Easy => "KOLAY",
+        Difficulty.Medium => "ORTA",
+        Difficulty.Hard => "ZOR",
+        Difficulty.VeryHard => "ÇOK ZOR",
         _ => ""
     };
 
-    public static string GetDifficultyColor(Difficulty d) => d switch
+    public static string DifficultyColor(Difficulty d) => d switch
     {
         Difficulty.VeryEasy => "#4CAF50",
         Difficulty.Easy => "#8BC34A",
         Difficulty.Medium => "#FF9800",
         Difficulty.Hard => "#F44336",
         Difficulty.VeryHard => "#9C27B0",
-        _ => "#999999"
+        _ => "#888888"
     };
 
     // ═══════════════════════════════════════════════════════════
-    //  SEVİYE BAŞLATMA
+    //  SEVİYE BAŞLAT
     // ═══════════════════════════════════════════════════════════
 
     public void StartLevel(int level)
     {
-        CurrentLevel = Math.Min(level, MaxLevel);
+        CurrentLevel = Math.Clamp(level, 1, MaxLevel);
         RotationAngle = 0;
-        PlacedPinAngles.Clear();
-        PrePlacedPinAngles.Clear();
+        PlacedPins.Clear();
+        PrePlacedPins.Clear();
         IsPinFlying = false;
+        IsPaused = false;
         State = GameState.Playing;
-        _oscillationTimer = 0;
+        _oscTimer = 0;
         _reverseTimer = 0;
 
-        var config = GetLevelConfig(CurrentLevel);
-        PinsToPlace = config.PinsToPlace;
+        var cfg = BuildConfig(CurrentLevel);
+        PinsToPlace = cfg.Pins;
         PinsRemaining = PinsToPlace;
-        BaseRotationSpeed = config.RotationSpeed;
-        _currentRotationSpeed = BaseRotationSpeed;
-        _oscillating = config.Oscillating;
-        _oscillationFrequency = config.OscillationFrequency;
-        _reversingDirection = config.ReversingDirection;
-        _reverseInterval = config.ReverseInterval;
+        _baseSpeed = cfg.Speed * (_rng.NextDouble() > 0.5 ? 1 : -1);
+        _currentSpeed = _baseSpeed;
+        _oscillating = cfg.Oscillate;
+        _oscFreq = cfg.OscFreq;
+        _reversing = cfg.Reverse;
+        _reverseInterval = cfg.ReverseInterval;
 
-        if (_rand.NextDouble() > 0.5)
-            BaseRotationSpeed = -BaseRotationSpeed;
-
-        PlacePrePins(config.PrePlacedPins);
+        SpawnPrePins(cfg.PrePins);
     }
 
-    private LevelConfig GetLevelConfig(int level)
+    private LevelCfg BuildConfig(int lvl)
     {
-        var difficulty = GetDifficulty(level);
-        return difficulty switch
+        var d = GetDifficulty(lvl);
+        return d switch
         {
-            Difficulty.VeryEasy => new LevelConfig
-            {
-                PinsToPlace = 3 + (level - 1) / 3,
-                RotationSpeed = 1.0f + level * 0.025f,
-                PrePlacedPins = 0,
-                Oscillating = false,
-                ReversingDirection = false
-            },
-            Difficulty.Easy => new LevelConfig
-            {
-                PinsToPlace = 6 + (level - 51) / 4,
-                RotationSpeed = 2.0f + (level - 51) * 0.018f,
-                PrePlacedPins = (level - 51) / 20,
-                Oscillating = false,
-                ReversingDirection = level > 100
-            },
-            Difficulty.Medium => new LevelConfig
-            {
-                PinsToPlace = 8 + (level - 151) / 5,
-                RotationSpeed = 3.2f + (level - 151) * 0.014f,
-                PrePlacedPins = 2 + (level - 151) / 20,
-                Oscillating = level > 200,
-                OscillationFrequency = 0.5f + (level - 200) * 0.006f,
-                ReversingDirection = true,
-                ReverseInterval = Math.Max(2f, 5f - (level - 151) * 0.015f)
-            },
-            Difficulty.Hard => new LevelConfig
-            {
-                PinsToPlace = 10 + (level - 301) / 4,
-                RotationSpeed = 4.8f + (level - 301) * 0.018f,
-                PrePlacedPins = 4 + (level - 301) / 15,
-                Oscillating = true,
-                OscillationFrequency = 1.0f + (level - 301) * 0.01f,
-                ReversingDirection = true,
-                ReverseInterval = Math.Max(1.5f, 3f - (level - 301) * 0.012f)
-            },
-            Difficulty.VeryHard => new LevelConfig
-            {
-                PinsToPlace = 14 + (level - 401) / 3,
-                RotationSpeed = 6.0f + (level - 401) * 0.022f,
-                PrePlacedPins = 6 + (level - 401) / 12,
-                Oscillating = true,
-                OscillationFrequency = 1.5f + (level - 401) * 0.012f,
-                ReversingDirection = true,
-                ReverseInterval = Math.Max(0.8f, 2f - (level - 401) * 0.01f)
-            },
-            _ => new LevelConfig { PinsToPlace = 5, RotationSpeed = 1.5f }
+            Difficulty.VeryEasy => new(
+                Pins: 3 + (lvl - 1) / 3,
+                Speed: 1.0f + lvl * 0.025f,
+                PrePins: 0, Oscillate: false, OscFreq: 0,
+                Reverse: false, ReverseInterval: 0),
+
+            Difficulty.Easy => new(
+                Pins: 6 + (lvl - 51) / 4,
+                Speed: 2.0f + (lvl - 51) * 0.018f,
+                PrePins: (lvl - 51) / 20,
+                Oscillate: false, OscFreq: 0,
+                Reverse: lvl > 100, ReverseInterval: 4f),
+
+            Difficulty.Medium => new(
+                Pins: 8 + (lvl - 151) / 5,
+                Speed: 3.2f + (lvl - 151) * 0.014f,
+                PrePins: 2 + (lvl - 151) / 20,
+                Oscillate: lvl > 200,
+                OscFreq: 0.5f + (lvl - 200) * 0.006f,
+                Reverse: true,
+                ReverseInterval: Math.Max(2f, 5f - (lvl - 151) * 0.015f)),
+
+            Difficulty.Hard => new(
+                Pins: 10 + (lvl - 301) / 4,
+                Speed: 4.8f + (lvl - 301) * 0.018f,
+                PrePins: 4 + (lvl - 301) / 15,
+                Oscillate: true,
+                OscFreq: 1.0f + (lvl - 301) * 0.01f,
+                Reverse: true,
+                ReverseInterval: Math.Max(1.5f, 3f - (lvl - 301) * 0.012f)),
+
+            _ => new(
+                Pins: 14 + (lvl - 401) / 3,
+                Speed: 6.0f + (lvl - 401) * 0.022f,
+                PrePins: 6 + (lvl - 401) / 12,
+                Oscillate: true,
+                OscFreq: 1.5f + (lvl - 401) * 0.012f,
+                Reverse: true,
+                ReverseInterval: Math.Max(0.8f, 2f - (lvl - 401) * 0.01f))
         };
     }
 
-    private void PlacePrePins(int count)
+    private void SpawnPrePins(int count)
     {
         if (count <= 0) return;
-        float spacing = MathF.PI * 2f / (count + PlacedPinAngles.Count + PinsToPlace);
         for (int i = 0; i < count; i++)
         {
-            float baseAngle = i * MathF.PI * 2f / count;
-            float jitter = (float)(_rand.NextDouble() - 0.5) * spacing * 0.3f;
-            PrePlacedPinAngles.Add(NormalizeAngle(baseAngle + jitter));
+            float angle = i * MathF.PI * 2f / count;
+            float jitter = (float)(_rng.NextDouble() - 0.5) * 0.3f;
+            PrePlacedPins.Add(Normalize(angle + jitter));
         }
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  GÜNCELLEME
+    //  GÜNCELLEME (her frame)
     // ═══════════════════════════════════════════════════════════
 
-    public void Update(float deltaSeconds)
+    public void Update(float dt)
     {
-        if (State != GameState.Playing) return;
+        if (State != GameState.Playing || IsPaused) return;
 
+        // Salınım
         if (_oscillating)
         {
-            _oscillationTimer += deltaSeconds;
-            float oscillation = MathF.Sin(_oscillationTimer * _oscillationFrequency * MathF.PI * 2f);
-            _currentRotationSpeed = BaseRotationSpeed * (1f + oscillation * 0.4f);
+            _oscTimer += dt;
+            float osc = MathF.Sin(_oscTimer * _oscFreq * MathF.PI * 2f);
+            _currentSpeed = _baseSpeed * (1f + osc * 0.4f);
         }
         else
         {
-            _currentRotationSpeed = BaseRotationSpeed;
+            _currentSpeed = _baseSpeed;
         }
 
-        if (_reversingDirection)
+        // Yön değişimi
+        if (_reversing)
         {
-            _reverseTimer += deltaSeconds;
+            _reverseTimer += dt;
             if (_reverseTimer >= _reverseInterval)
             {
                 _reverseTimer = 0;
-                BaseRotationSpeed = -BaseRotationSpeed;
+                _baseSpeed = -_baseSpeed;
             }
         }
 
-        RotationAngle += _currentRotationSpeed * deltaSeconds;
+        // Dönüş
+        RotationAngle += _currentSpeed * dt;
 
+        // Uçan iğne
         if (IsPinFlying)
         {
-            FlyingPinY -= FlyingPinSpeed * deltaSeconds;
+            FlyingPinY -= FlySpeed * dt;
+
+            // İğne daireye ulaştı
             if (FlyingPinY <= 0)
             {
                 IsPinFlying = false;
-                float pinAngle = NormalizeAngle(-RotationAngle);
 
-                if (CheckCollision(pinAngle))
+                // Alttan geldiği için açı = π (aşağı), dönen daireye göre düzelt
+                float pinAngle = Normalize(MathF.PI - RotationAngle);
+
+                // Çarpışma kontrolü
+                if (HasCollision(pinAngle))
                 {
                     State = GameState.GameOver;
+                    OnCollision?.Invoke();
                     return;
                 }
 
-                PlacedPinAngles.Add(pinAngle);
+                // İğneyi sapla
+                PlacedPins.Add(pinAngle);
                 PinsRemaining--;
                 Score++;
-
                 if (Score > HighScore) HighScore = Score;
-                if (PinsRemaining <= 0) State = GameState.LevelComplete;
+                OnPinPlaced?.Invoke();
+
+                // Seviye bitti mi?
+                if (PinsRemaining <= 0)
+                {
+                    State = GameState.LevelComplete;
+                    OnLevelCleared?.Invoke();
+                }
             }
         }
     }
 
-    public void ShootPin(float startY)
+    // ═══════════════════════════════════════════════════════════
+    //  İĞNE FIRLATMA
+    // ═══════════════════════════════════════════════════════════
+
+    public void Shoot(float startY = 280f)
     {
-        if (State != GameState.Playing || IsPinFlying) return;
+        if (State != GameState.Playing || IsPinFlying || IsPaused) return;
         IsPinFlying = true;
         FlyingPinY = startY;
     }
 
-    private bool CheckCollision(float newAngle)
+    // ═══════════════════════════════════════════════════════════
+    //  DURAKLATMA / DEVAM
+    // ═══════════════════════════════════════════════════════════
+
+    public void TogglePause()
     {
-        foreach (var a in PlacedPinAngles)
-            if (AngleDistance(newAngle, a) < CollisionAngleThreshold) return true;
-        foreach (var a in PrePlacedPinAngles)
-            if (AngleDistance(newAngle, a) < CollisionAngleThreshold) return true;
+        if (State == GameState.Playing)
+            IsPaused = !IsPaused;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  ÇARPIŞMA
+    // ═══════════════════════════════════════════════════════════
+
+    private bool HasCollision(float newAngle)
+    {
+        foreach (var a in PlacedPins)
+            if (AngleDist(newAngle, a) < CollisionThreshold) return true;
+        foreach (var a in PrePlacedPins)
+            if (AngleDist(newAngle, a) < CollisionThreshold) return true;
         return false;
     }
 
-    private static float AngleDistance(float a, float b)
+    private static float AngleDist(float a, float b)
     {
-        float diff = MathF.Abs(NormalizeAngle(a) - NormalizeAngle(b));
-        return MathF.Min(diff, MathF.PI * 2f - diff);
+        float d = MathF.Abs(Normalize(a) - Normalize(b));
+        return MathF.Min(d, MathF.PI * 2f - d);
     }
 
-    private static float NormalizeAngle(float angle)
+    private static float Normalize(float a)
     {
-        angle %= MathF.PI * 2f;
-        if (angle < 0) angle += MathF.PI * 2f;
-        return angle;
+        a %= MathF.PI * 2f;
+        if (a < 0) a += MathF.PI * 2f;
+        return a;
     }
 
-    public void Reset() { Score = 0; StartLevel(1); }
+    // ═══════════════════════════════════════════════════════════
+    //  DURUM YÖNETİMİ
+    // ═══════════════════════════════════════════════════════════
+
+    public void Restart() { Score = 0; StartLevel(1); }
 
     public void NextLevel()
     {
@@ -267,17 +315,13 @@ public class PinGameEngine
     }
 }
 
+// ─── Yardımcı Tipler ────────────────────────────────────────
+
 public enum GameState { Ready, Playing, LevelComplete, GameOver, Victory }
 
 public enum Difficulty { VeryEasy, Easy, Medium, Hard, VeryHard }
 
-internal class LevelConfig
-{
-    public int PinsToPlace { get; init; } = 5;
-    public float RotationSpeed { get; init; } = 1.5f;
-    public int PrePlacedPins { get; init; }
-    public bool Oscillating { get; init; }
-    public float OscillationFrequency { get; init; } = 1f;
-    public bool ReversingDirection { get; init; }
-    public float ReverseInterval { get; init; } = 3f;
-}
+internal record LevelCfg(
+    int Pins, float Speed, int PrePins,
+    bool Oscillate, float OscFreq,
+    bool Reverse, float ReverseInterval);

@@ -5,86 +5,159 @@ namespace AAPlus.Renderers;
 
 public enum MenuButton { None, Play, Continue, Settings }
 
+/// <summary>
+/// Ana menü — siyah arka plan, beyaz minimalist tasarım.
+/// </summary>
 public class MainMenuRenderer
 {
     private SKRect _playRect, _continueRect, _settingsRect;
-    private readonly float[] _orbits = { 0, 1.2f, 2.4f, 3.6f, 4.8f, 6.0f };
+    private readonly float[] _orbits = { 0, 1.05f, 2.1f, 3.15f, 4.2f, 5.25f };
 
-    public void Draw(SKCanvas canvas, SKSize size, MainMenuViewModel vm, float time)
+    private static readonly SKColor Bg = SKColor.Parse("#111111");
+    private static readonly SKColor White = SKColors.White;
+    private static readonly SKColor Dim = new(255, 255, 255, 100);
+    private static readonly SKColor CircleBg = SKColor.Parse("#222222");
+
+    public void Draw(SKCanvas c, SKSize sz, MainMenuViewModel vm, float time)
     {
-        canvas.Clear(SKColor.Parse("#FAFAFA"));
-        float cx = size.Width / 2f;
+        c.Clear(Bg);
+        float cx = sz.Width / 2f;
+        float circleY = sz.Height * 0.30f;
 
-        // Dekoratif noktalar
-        float oy = size.Height * 0.28f;
+        // Dekoratif dönen iğneler
         for (int i = 0; i < 6; i++)
         {
-            float a = _orbits[i] + time * (0.5f + i * 0.08f);
-            float x = cx + MathF.Sin(a) * 85f, y = oy - MathF.Cos(a) * 85f;
-            using var lp = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2f, Color = new SKColor(26, 26, 26, 40) };
-            canvas.DrawLine(cx, oy, x, y, lp);
-            using var dp = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = new SKColor(26, 26, 26, 60) };
-            canvas.DrawCircle(x, y, 10f, dp);
+            float a = _orbits[i] + time * (0.4f + i * 0.06f);
+            float sin = MathF.Sin(a), cos = MathF.Cos(a);
+            float x1 = cx + sin * 50f, y1 = circleY - cos * 50f;
+            float x2 = cx + sin * 110f, y2 = circleY - cos * 110f;
+
+            using var lp = new SKPaint
+            {
+                IsAntialias = true, Style = SKPaintStyle.Stroke,
+                StrokeWidth = 2f, Color = new SKColor(255, 255, 255, 30), StrokeCap = SKStrokeCap.Round
+            };
+            c.DrawLine(x1, y1, x2, y2, lp);
+
+            using var dp = new SKPaint
+            {
+                IsAntialias = true, Style = SKPaintStyle.Fill,
+                Color = new SKColor(255, 255, 255, 50)
+            };
+            c.DrawCircle(x2, y2, 6f, dp);
         }
 
-        // Logo
-        using var tp = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#1A1A1A"), TextSize = 36, TextAlign = SKTextAlign.Center, Typeface = SKTypeface.FromFamilyName("Helvetica", SKFontStyleWeight.Thin, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        canvas.DrawText("aa", cx, size.Height * 0.15f, tp);
-
         // Merkez daire
-        using var cp = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = SKColor.Parse("#1A1A1A") };
-        canvas.DrawCircle(cx, oy, 45f, cp);
-        using var np = new SKPaint { IsAntialias = true, Color = SKColors.White, TextSize = 24, TextAlign = SKTextAlign.Center, Typeface = SKTypeface.FromFamilyName("Helvetica", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        canvas.DrawText(vm.BestLevel.ToString(), cx, oy + 8, np);
-        using var lbl = new SKPaint { IsAntialias = true, Color = new SKColor(255, 255, 255, 150), TextSize = 10, TextAlign = SKTextAlign.Center };
-        canvas.DrawText("LEVEL", cx, oy + 22, lbl);
+        using var cf = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = CircleBg };
+        c.DrawCircle(cx, circleY, 50f, cf);
+        using var cs = new SKPaint
+        {
+            IsAntialias = true, Style = SKPaintStyle.Stroke,
+            StrokeWidth = 2f, Color = new SKColor(255, 255, 255, 30)
+        };
+        c.DrawCircle(cx, circleY, 50f, cs);
 
-        // Butonlar
-        float bw = Math.Min(220, size.Width * 0.55f), btnY = size.Height * 0.52f;
+        // "aa" logosu
+        using var logo = new SKPaint
+        {
+            IsAntialias = true, Color = White, TextSize = 32,
+            TextAlign = SKTextAlign.Center,
+            Typeface = SKTypeface.FromFamilyName("Helvetica Neue",
+                SKFontStyleWeight.Thin, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+        };
+        c.DrawText("aa", cx, circleY + 11, logo);
+
+        // Best level alt yazı
+        using var bl = new SKPaint
+        {
+            IsAntialias = true, Color = Dim, TextSize = 10,
+            TextAlign = SKTextAlign.Center
+        };
+        c.DrawText($"BEST LEVEL: {vm.BestLevel}", cx, circleY + 30, bl);
+
+        // ═══ BUTONLAR ═══
+        float bw = Math.Min(200, sz.Width * 0.5f);
+        float btnY = sz.Height * 0.54f;
 
         // OYNA
         _playRect = new SKRect(cx - bw / 2, btnY, cx + bw / 2, btnY + 48);
-        using var pb = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = SKColor.Parse("#1A1A1A") };
-        canvas.DrawRoundRect(_playRect, 24, 24, pb);
-        using var pt = new SKPaint { IsAntialias = true, Color = SKColors.White, TextSize = 17, TextAlign = SKTextAlign.Center, Typeface = SKTypeface.FromFamilyName("Helvetica", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        canvas.DrawText("▶  OYNA", cx, btnY + 30, pt);
+        using var pbg = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill, Color = White };
+        c.DrawRoundRect(_playRect, 24, 24, pbg);
+        using var ptx = new SKPaint
+        {
+            IsAntialias = true, Color = SKColor.Parse("#111111"), TextSize = 16,
+            TextAlign = SKTextAlign.Center,
+            Typeface = SKTypeface.FromFamilyName("Helvetica Neue",
+                SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+        };
+        c.DrawText("▶  OYNA", cx, btnY + 30, ptx);
 
         btnY += 60;
         if (vm.CanContinue)
         {
             _continueRect = new SKRect(cx - bw / 2, btnY, cx + bw / 2, btnY + 44);
-            using var cb = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 2f, Color = SKColor.Parse("#1A1A1A") };
-            canvas.DrawRoundRect(_continueRect, 22, 22, cb);
-            using var ct = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#1A1A1A"), TextSize = 15, TextAlign = SKTextAlign.Center };
-            canvas.DrawText($"DEVAM ET  ›  Seviye {vm.LastLevel}", cx, btnY + 28, ct);
+            using var cb = new SKPaint
+            {
+                IsAntialias = true, Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1.5f, Color = White
+            };
+            c.DrawRoundRect(_continueRect, 22, 22, cb);
+            using var ct = new SKPaint
+            {
+                IsAntialias = true, Color = White, TextSize = 14,
+                TextAlign = SKTextAlign.Center
+            };
+            c.DrawText($"DEVAM ET  ›  Level {vm.LastLevel}", cx, btnY + 28, ct);
             btnY += 56;
         }
 
         // Ses
-        _settingsRect = new SKRect(cx - bw / 2, btnY, cx + bw / 2, btnY + 44);
-        using var sb = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f, Color = new SKColor(26, 26, 26, 80) };
-        canvas.DrawRoundRect(_settingsRect, 22, 22, sb);
+        _settingsRect = new SKRect(cx - bw / 2, btnY, cx + bw / 2, btnY + 40);
+        using var sb = new SKPaint
+        {
+            IsAntialias = true, Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1f, Color = new SKColor(255, 255, 255, 50)
+        };
+        c.DrawRoundRect(_settingsRect, 20, 20, sb);
         string icon = vm.SoundEnabled ? "🔊" : "🔇";
-        using var st = new SKPaint { IsAntialias = true, Color = new SKColor(26, 26, 26, 150), TextSize = 14, TextAlign = SKTextAlign.Center };
-        canvas.DrawText($"{icon}  SES {(vm.SoundEnabled ? "AÇIK" : "KAPALI")}", cx, btnY + 27, st);
+        using var st = new SKPaint
+        {
+            IsAntialias = true, Color = Dim, TextSize = 13,
+            TextAlign = SKTextAlign.Center
+        };
+        c.DrawText($"{icon}  SES {(vm.SoundEnabled ? "AÇIK" : "KAPALI")}", cx, btnY + 25, st);
 
-        // İstatistikler
-        float sy = size.Height * 0.82f;
-        using var vp = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#1A1A1A"), TextSize = 20, TextAlign = SKTextAlign.Center, Typeface = SKTypeface.FromFamilyName("Helvetica", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        using var lp2 = new SKPaint { IsAntialias = true, Color = new SKColor(26, 26, 26, 100), TextSize = 11, TextAlign = SKTextAlign.Center };
+        // ═══ İSTATİSTİKLER ═══
+        float sy = sz.Height * 0.84f;
+        using var vp = new SKPaint
+        {
+            IsAntialias = true, Color = White, TextSize = 18,
+            TextAlign = SKTextAlign.Center,
+            Typeface = SKTypeface.FromFamilyName("Helvetica Neue",
+                SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
+        };
+        using var lbl = new SKPaint
+        {
+            IsAntialias = true, Color = Dim, TextSize = 10,
+            TextAlign = SKTextAlign.Center
+        };
 
-        float c1 = size.Width * 0.25f, c2 = size.Width * 0.5f, c3 = size.Width * 0.75f;
-        canvas.DrawText(vm.HighScore.ToString(), c1, sy, vp);
-        canvas.DrawText("EN İYİ SKOR", c1, sy + 18, lp2);
-        canvas.DrawText(vm.BestLevel.ToString(), c2, sy, vp);
-        canvas.DrawText("EN İYİ SEVİYE", c2, sy + 18, lp2);
-        canvas.DrawText(vm.TotalGames.ToString(), c3, sy, vp);
-        canvas.DrawText("TOPLAM OYUN", c3, sy + 18, lp2);
+        float c1 = sz.Width * 0.25f, c2 = sz.Width * 0.5f, c3 = sz.Width * 0.75f;
+        c.DrawText(vm.HighScore.ToString(), c1, sy, vp);
+        c.DrawText("BEST SCORE", c1, sy + 16, lbl);
+        c.DrawText(vm.BestLevel.ToString(), c2, sy, vp);
+        c.DrawText("BEST LEVEL", c2, sy + 16, lbl);
+        c.DrawText(vm.TotalGames.ToString(), c3, sy, vp);
+        c.DrawText("TOTAL GAMES", c3, sy + 16, lbl);
 
         // Alt yazı
-        float pulse = 0.4f + 0.3f * MathF.Sin(time * 2f);
-        using var fp = new SKPaint { IsAntialias = true, Color = new SKColor(26, 26, 26, (byte)(pulse * 255)), TextSize = 12, TextAlign = SKTextAlign.Center };
-        canvas.DrawText("Odaklanmayı başarabilir misin?", cx, size.Height - 40, fp);
+        float pulse = 0.3f + 0.3f * MathF.Sin(time * 2f);
+        using var fp = new SKPaint
+        {
+            IsAntialias = true, Color = new SKColor(255, 255, 255, (byte)(pulse * 255)),
+            TextSize = 12, TextAlign = SKTextAlign.Center
+        };
+        c.DrawText("Odaklanmayı başarabilir misin?", cx, sz.Height - 35, fp);
     }
 
     public MenuButton HitTest(float x, float y)

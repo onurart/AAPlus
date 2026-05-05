@@ -5,7 +5,7 @@
              xmlns:vm="clr-namespace:AAPlus.ViewModels"
              x:Class="AAPlus.Views.PinGamePage"
              x:DataType="vm:PinGameViewModel"
-             BackgroundColor="#FAFAFA"
+             BackgroundColor="#111111"
              Shell.NavBarIsVisible="False">
     <Grid>
         <skia:SKCanvasView x:Name="GameCanvas"
