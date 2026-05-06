@@ -1,4 +1,53 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="456" height="456" viewBox="0 0 456 456" version="1.1" xmlns="http://www.w3.org/2000/svg">
-    <rect x="0" y="0" width="456" height="456" fill="#512BD4" />
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+  <!-- Arka plan: Koyu gradient -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#1A1A2E"/>
+      <stop offset="100%" stop-color="#0A0A14"/>
+    </radialGradient>
+  </defs>
+  <rect width="456" height="456" rx="96" fill="url(#bg)"/>
+
+  <!-- Ana daire -->
+  <circle cx="228" cy="210" r="80" fill="#16213E" stroke="#E94560" stroke-width="3" opacity="0.9"/>
+
+  <!-- İç daire -->
+  <circle cx="228" cy="210" r="60" fill="none" stroke="#E94560" stroke-width="1" opacity="0.3"/>
+
+  <!-- "aa" yazısı -->
+  <text x="228" y="225" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif"
+        font-size="48" font-weight="300" fill="#FFFFFF" letter-spacing="4">aa</text>
+
+  <!-- İğneler (üst) -->
+  <line x1="228" y1="130" x2="228" y2="70" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="228" cy="65" r="7" fill="#FFFFFF"/>
+
+  <!-- İğneler (sağ üst) -->
+  <line x1="285" y1="153" x2="325" y2="113" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="329" cy="109" r="7" fill="#FFFFFF"/>
+
+  <!-- İğneler (sol üst) -->
+  <line x1="171" y1="153" x2="131" y2="113" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="127" cy="109" r="7" fill="#FFFFFF"/>
+
+  <!-- İğneler (sağ) -->
+  <line x1="308" y1="210" x2="368" y2="210" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="373" cy="210" r="7" fill="#FFFFFF"/>
+
+  <!-- İğneler (sol) -->
+  <line x1="148" y1="210" x2="88" y2="210" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="83" cy="210" r="7" fill="#FFFFFF"/>
+
+  <!-- Fırlatılacak iğne (alt) -->
+  <line x1="228" y1="350" x2="228" y2="400" stroke="#E94560" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="228" cy="405" r="7" fill="#E94560" opacity="0.8"/>
+
+  <!-- "+" sembolü -->
+  <text x="228" y="440" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif"
+        font-size="28" font-weight="700" fill="#E94560">+</text>
+
+  <!-- Parıltı efekti -->
+  <circle cx="228" cy="210" r="85" fill="none" stroke="#E94560" stroke-width="1" opacity="0.15"/>
+  <circle cx="228" cy="210" r="95" fill="none" stroke="#E94560" stroke-width="0.5" opacity="0.08"/>
 </svg>

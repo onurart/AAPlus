@@ -45,10 +45,16 @@
 		<EnableCodeSigning>true</EnableCodeSigning>
 	</PropertyGroup>
 
-	<!-- xattr temizle (Mac build) -->
+	<!-- xattr temizle (Mac build — codesign 'resource fork' hatasını önler) -->
 	<Target Name="StripExtendedAttributes" BeforeTargets="_CodesignAppBundle;_CodesignNativeLibraries">
-		<Exec Command="find '$(OutputPath)' -name '*.app' -exec xattr -cr {} + 2>/dev/null; xattr -cr '$(OutputPath)' 2>/dev/null" ContinueOnError="true" />
+		<Exec Command="xattr -cr '$(OutputPath)' 2>/dev/null; find '$(OutputPath)' -name '*.app' -exec xattr -cr {} + 2>/dev/null; xattr -cr '$(IntermediateOutputPath)' 2>/dev/null" ContinueOnError="true" />
 	</Target>
+
+	<!-- Tests klasörünü MAUI build'den hariç tut -->
+	<ItemGroup>
+		<Compile Remove="Tests\**" />
+		<None Remove="Tests\**" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#1A1A1A" />

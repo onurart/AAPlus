@@ -3,76 +3,208 @@ using System.Collections.Generic;
 
 namespace AAPlus.Services;
 
+// ═══════════════════════════════════════════════════════════════════
+//  MATEMATİKSEL MODEL
+// ═══════════════════════════════════════════════════════════════════
+//
+//  KOORDİNAT SİSTEMİ:
+//    x = cx + r × sin(θ),  y = cy - r × cos(θ)
+//    θ = 0 → yukarı,  θ = π → aşağı
+//
+//  AÇISAL HAREKET:
+//    rotationAngle = Normalize(rotationAngle + omega * deltaTime)
+//    omega = baseOmega * (1 + 0.4f * MathF.Sin(2 * MathF.PI * frequency * elapsedTime))
+//
+//  YENİ MEKANİKLER:
+//    1. KALKAN HALKASI — Dairenin etrafında dönen koruyucu halka, boşluktan geçmeli
+//    2. HAREKETLİ İĞNELER — Pre-pin'ler salınım yapar
+//    3. BOSS SEVİYELERİ — Her 50 seviyede özel zorluk
+//
+// ═══════════════════════════════════════════════════════════════════
+
 /// <summary>
-/// "aa" tarzı iğne saplama oyun motoru.
-/// İğneler alttan merkeze fırlatılır, daireye saplanır ve birlikte döner.
-/// Çarpışma = Game Over.
+/// "aa" tarzı iğne saplama oyun motoru — 250 seviye, 5 kademe, 3 özel mekanik.
 /// </summary>
 public class PinGameEngine
 {
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  SABİTLER                                                ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    private const float TWO_PI = MathF.PI * 2f;
+    public const float CircleRadius = 50f;
+    public const float PinLength = 70f;
+    public const float PinHeadRadius = 8f;
+    private const float PIN_FLY_SPEED = 1800f;
+    public const int MaxLevel = 250;
+
+    // Çarpışma eşiği
+    private const float BASE_COLLISION_THRESHOLD = 0.22f;
+    private const float MIN_COLLISION_THRESHOLD = 0.14f;
+    private const float THRESHOLD_DECAY = 0.0003f;
+    private float _collisionThreshold;
+
+    // Kalkan halkası sabitleri
+    public const float ShieldRadiusOffset = 35f; // Daireden uzaklık (px)
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  DURUM DEĞİŞKENLERİ                                     ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
     // ─── Seviye ──────────────────────────────────────────────
     public int CurrentLevel { get; private set; } = 1;
-    public const int MaxLevel = 500;
-
-    // ─── İğne Sayıları ──────────────────────────────────────
     public int PinsToPlace { get; internal set; }
     public int PinsRemaining { get; internal set; }
 
-    // ─── Dönüş ──────────────────────────────────────────────
+    // ─── Açısal Hareket ──────────────────────────────────────
     public float RotationAngle { get; private set; }
-    private float _baseSpeed;
-    private float _currentSpeed;
+    private float _omegaBase;
+    private float _omegaCurrent;
 
-    // Salınım (ileri seviyelerde)
-    private bool _oscillating;
-    private float _oscTimer;
-    private float _oscFreq;
+    // ─── Salınım ─────────────────────────────────────────────
+    private bool _oscillationEnabled;
+    private float _oscillationTime;
+    private float _oscillationFreqHz;
 
-    // Yön değişimi (ileri seviyelerde)
-    private bool _reversing;
-    private float _reverseTimer;
-    private float _reverseInterval;
+    // ─── Yön Değişimi ────────────────────────────────────────
+    private bool _directionReversalEnabled;
+    private float _reversalTimer;
+    private float _reversalIntervalSec;
 
-    // ─── Saplanmış İğneler (açı listesi) ────────────────────
+    // ─── İğneler ─────────────────────────────────────────────
     public List<float> PlacedPins { get; } = new();
     public List<float> PrePlacedPins { get; } = new();
 
-    // ─── Fırlatılan İğne ────────────────────────────────────
+    // ─── Fırlatılan İğne ─────────────────────────────────────
     public bool IsPinFlying { get; private set; }
     public float FlyingPinY { get; private set; }
-    private const float FlySpeed = 1800f;
 
-    // ─── Durum ──────────────────────────────────────────────
+    // ─── Durum ───────────────────────────────────────────────
     public GameState State { get; private set; } = GameState.Ready;
     public bool IsPaused { get; private set; }
     public int Score { get; set; }
     public int HighScore { get; set; }
 
-    // ─── Sabitler ───────────────────────────────────────────
-    public const float CircleRadius = 50f;
-    public const float PinLength = 70f;
-    public const float PinHeadRadius = 8f;
-    private const float CollisionThreshold = 0.20f;
+    // ─── Aktif Level Config ─────────────────────────────────
+    public LevelConfig? ActiveConfig { get; private set; }
+    public RotationBehavior CurrentBehavior { get; private set; }
+
+    // ─── Behavior state ──────────────────────────────────────
+    private float _accelFactor = 1f;   // Accelerating/Decelerating
+    private float _fakeReverseTimer;   // FakeReverse
+    private bool _fakeReversed;
+
+    // ─── Kalkan Halkası ──────────────────────────────────────
+
+    public bool HasShield { get; private set; }
+    public float ShieldAngle { get; private set; }    // Halka dönüş açısı
+    public float ShieldGapAngle { get; private set; } // Boşluk genişliği (rad)
+    private float _shieldSpeed;                        // Halka dönüş hızı
+    private bool _shieldPassed;                        // İğne halkayı geçti mi
+
+    // ═══════════════════════════════════════════════════════════
+    //  YENİ MEKANİK 2: HAREKETLİ İĞNELER
+    // ═══════════════════════════════════════════════════════════
+    //
+    //  Pre-pin'ler sabit durmaz, açısal salınım yapar.
+    //  θ_prepin(t) = θ_base + A × sin(2π × f_move × t)
+    //
+    //  Bu, çarpışma tahminini zorlaştırır.
+    //
+
+    public bool HasMovingPins { get; private set; }
+    private float _prePinOscRange;     // Salınım genliği (rad)
+    private float _prePinTimer;
+    private List<float> _prePinBaseAngles = new(); // Orijinal açılar
+
+    // ═══════════════════════════════════════════════════════════
+    //  YENİ MEKANİK 3: BOSS SEVİYELERİ
+    // ═══════════════════════════════════════════════════════════
+    //
+    //  Her 50 seviyede (50, 100, 150, 200, 250) boss seviye.
+    //  Tüm mekanikler aktif + ekstra zorluk.
+    //
+
+    public bool IsBossLevel { get; private set; }
+    public static bool IsBoss(int level) => level % 50 == 0 && level > 0;
+
+    // ═══════════════════════════════════════════════════════════
+    //  OYUN MODLARI — Her seviye farklı oynama şekli
+    // ═══════════════════════════════════════════════════════════
+    //
+    //  Normal:     Standart tek iğne fırlatma
+    //  SpeedBurst: Daire ani hızlanıp yavaşlar (3sn döngü)
+    //  DoublePin:  2 iğne aynı anda simetrik fırlatılır
+    //  Invisible:  Saplanmış iğneler 2sn sonra görünmez olur
+    //  Shrinking:  Daire periyodik olarak küçülüp büyür
+    //
+
+    public GameMode CurrentMode { get; private set; } = GameMode.Normal;
+
+    // SpeedBurst state
+    private float _burstTimer;
+    public bool IsBurstActive { get; private set; }
+    private const float BURST_CYCLE = 3f;     // 3 sn döngü
+    private const float BURST_DURATION = 0.8f; // 0.8 sn hızlı
+    private const float BURST_MULTIPLIER = 2.5f;
+
+    // DoublePin state
+    public bool IsDoublePin => CurrentMode == GameMode.DoublePin;
+    public bool HasSecondPin { get; private set; } // ikinci pin de saplanacak mı
+
+    // Invisible state
+    public List<float> PinPlaceTimes { get; } = new(); // her pinin yerleşme zamanı
+    private float _gameTimer;
+    public float GameTimer => _gameTimer;
+    public const float INVISIBLE_FADE_TIME = 2f;
+
+    // Shrinking state
+    public float CircleScale { get; private set; } = 1f;
+    private const float SHRINK_CYCLE = 4f;  // 4 sn periyot
+    private const float SHRINK_MIN = 0.7f;  // minimum %70
 
     private readonly Random _rng = new();
 
-    // ─── Event'ler (ses/haptic için) ────────────────────────
+    // ─── Event'ler ───────────────────────────────────────────
     public event Action? OnPinPlaced;
     public event Action? OnCollision;
     public event Action? OnLevelCleared;
+    public event Action? OnShieldHit;
 
-    // ═══════════════════════════════════════════════════════════
-    //  ZORLUK
-    // ═══════════════════════════════════════════════════════════
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  TRİGONOMETRİK YARDIMCI                                  ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    public static float Normalize(float angle)
+    {
+        angle %= TWO_PI;
+        if (angle < 0f) angle += TWO_PI;
+        return angle;
+    }
+
+    public static float AngleDistance(float a, float b)
+    {
+        float delta = MathF.Abs(Normalize(a) - Normalize(b));
+        return MathF.Min(delta, TWO_PI - delta);
+    }
+
+    public static (float x, float y) PolarToScreen(float cx, float cy, float radius, float angle)
+    {
+        return (cx + radius * MathF.Sin(angle), cy - radius * MathF.Cos(angle));
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  ZORLUK SİSTEMİ                                          ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     public Difficulty CurrentDifficulty => GetDifficulty(CurrentLevel);
 
     public static Difficulty GetDifficulty(int lvl) => lvl switch
     {
-        <= 50 => Difficulty.VeryEasy,
-        <= 150 => Difficulty.Easy,
-        <= 300 => Difficulty.Medium,
-        <= 400 => Difficulty.Hard,
+        <= 30 => Difficulty.VeryEasy,
+        <= 70 => Difficulty.Easy,
+        <= 120 => Difficulty.Medium,
+        <= 200 => Difficulty.Hard,
         _ => Difficulty.VeryHard
     };
 
@@ -96,141 +228,239 @@ public class PinGameEngine
         _ => "#888888"
     };
 
-    // ═══════════════════════════════════════════════════════════
-    //  SEVİYE BAŞLAT
-    // ═══════════════════════════════════════════════════════════
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  SEVİYE BAŞLATMA                                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     public void StartLevel(int level)
     {
         CurrentLevel = Math.Clamp(level, 1, MaxLevel);
-        RotationAngle = 0;
+        var cfg = LevelConfigProvider.GetConfig(CurrentLevel);
+        ActiveConfig = cfg;
+
+        // Temel durum sıfırla
+        RotationAngle = 0f;
         PlacedPins.Clear();
         PrePlacedPins.Clear();
+        _prePinBaseAngles.Clear();
         IsPinFlying = false;
         IsPaused = false;
         State = GameState.Playing;
-        _oscTimer = 0;
-        _reverseTimer = 0;
+        _oscillationTime = 0f;
+        _reversalTimer = 0f;
+        _prePinTimer = 0f;
+        _shieldPassed = false;
 
-        var cfg = BuildConfig(CurrentLevel);
-        PinsToPlace = cfg.Pins;
+        // Config → Engine state
+        PinsToPlace = SafePinCount(cfg);
         PinsRemaining = PinsToPlace;
-        _baseSpeed = cfg.Speed * (_rng.NextDouble() > 0.5 ? 1 : -1);
-        _currentSpeed = _baseSpeed;
-        _oscillating = cfg.Oscillate;
-        _oscFreq = cfg.OscFreq;
-        _reversing = cfg.Reverse;
-        _reverseInterval = cfg.ReverseInterval;
+        IsBossLevel = cfg.IsBoss;
+        CurrentMode = cfg.Mode;
+        CurrentBehavior = cfg.RotationBehaviorType;
+
+        // Açısal hız
+        _omegaBase = cfg.BaseRotationSpeed * (_rng.NextDouble() > 0.5 ? 1f : -1f);
+        _omegaCurrent = _omegaBase;
+
+        // Salınım
+        bool needsOsc = cfg.OscillationFrequency > 0 ||
+            cfg.RotationBehaviorType is RotationBehavior.Oscillating or RotationBehavior.Chaos;
+        _oscillationEnabled = needsOsc;
+        _oscillationFreqHz = cfg.OscillationFrequency > 0 ? cfg.OscillationFrequency : 0.5f;
+
+        // Yön değişimi
+        _directionReversalEnabled = cfg.DirectionChangeInterval > 0;
+        _reversalIntervalSec = cfg.DirectionChangeInterval;
+
+        // Çarpışma eşiği
+        _collisionThreshold = MathF.Max(MIN_COLLISION_THRESHOLD, cfg.Threshold);
+
+        // Kalkan
+        HasShield = cfg.HasShield;
+        ShieldAngle = 0f;
+        _shieldSpeed = cfg.ShieldSpeed * (_rng.NextDouble() > 0.5 ? 1f : -1f);
+        ShieldGapAngle = MathF.Max(30f, cfg.ShieldGapDeg) * MathF.PI / 180f;
+
+        // Hareketli İğneler
+        HasMovingPins = cfg.MovingPrePins;
+        _prePinOscRange = cfg.PrePinOscRange;
+
+        // Mod + behavior state sıfırla
+        _burstTimer = 0f;
+        IsBurstActive = false;
+        HasSecondPin = false;
+        PinPlaceTimes.Clear();
+        _gameTimer = 0f;
+        CircleScale = 1f;
+        _accelFactor = 1f;
+        _fakeReverseTimer = 0f;
+        _fakeReversed = false;
 
         SpawnPrePins(cfg.PrePins);
     }
 
-    private LevelCfg BuildConfig(int lvl)
+    private int SafePinCount(LevelConfig cfg)
     {
-        var d = GetDifficulty(lvl);
-        return d switch
-        {
-            Difficulty.VeryEasy => new(
-                Pins: 3 + (lvl - 1) / 3,
-                Speed: 1.0f + lvl * 0.025f,
-                PrePins: 0, Oscillate: false, OscFreq: 0,
-                Reverse: false, ReverseInterval: 0),
-
-            Difficulty.Easy => new(
-                Pins: 6 + (lvl - 51) / 4,
-                Speed: 2.0f + (lvl - 51) * 0.018f,
-                PrePins: (lvl - 51) / 20,
-                Oscillate: false, OscFreq: 0,
-                Reverse: lvl > 100, ReverseInterval: 4f),
-
-            Difficulty.Medium => new(
-                Pins: 8 + (lvl - 151) / 5,
-                Speed: 3.2f + (lvl - 151) * 0.014f,
-                PrePins: 2 + (lvl - 151) / 20,
-                Oscillate: lvl > 200,
-                OscFreq: 0.5f + (lvl - 200) * 0.006f,
-                Reverse: true,
-                ReverseInterval: Math.Max(2f, 5f - (lvl - 151) * 0.015f)),
-
-            Difficulty.Hard => new(
-                Pins: 10 + (lvl - 301) / 4,
-                Speed: 4.8f + (lvl - 301) * 0.018f,
-                PrePins: 4 + (lvl - 301) / 15,
-                Oscillate: true,
-                OscFreq: 1.0f + (lvl - 301) * 0.01f,
-                Reverse: true,
-                ReverseInterval: Math.Max(1.5f, 3f - (lvl - 301) * 0.012f)),
-
-            _ => new(
-                Pins: 14 + (lvl - 401) / 3,
-                Speed: 6.0f + (lvl - 401) * 0.022f,
-                PrePins: 6 + (lvl - 401) / 12,
-                Oscillate: true,
-                OscFreq: 1.5f + (lvl - 401) * 0.012f,
-                Reverse: true,
-                ReverseInterval: Math.Max(0.8f, 2f - (lvl - 401) * 0.01f))
-        };
+        float th = MathF.Max(MIN_COLLISION_THRESHOLD, cfg.Threshold);
+        int maxSafe = (int)(TWO_PI / th * 0.70f);
+        return Math.Min(cfg.NeedleCount, Math.Max(2, maxSafe - cfg.PrePins));
     }
 
     private void SpawnPrePins(int count)
     {
         if (count <= 0) return;
+        float spacing = TWO_PI / count;
         for (int i = 0; i < count; i++)
         {
-            float angle = i * MathF.PI * 2f / count;
-            float jitter = (float)(_rng.NextDouble() - 0.5) * 0.3f;
-            PrePlacedPins.Add(Normalize(angle + jitter));
+            float baseAngle = i * spacing;
+            float jitter = (float)(_rng.NextDouble() - 0.5) * spacing * 0.25f;
+            float angle = Normalize(baseAngle + jitter);
+            PrePlacedPins.Add(angle);
+            _prePinBaseAngles.Add(angle);
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  GÜNCELLEME (her frame)
-    // ═══════════════════════════════════════════════════════════
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  OYUN DÖNGÜSÜ                                            ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     public void Update(float dt)
     {
         if (State != GameState.Playing || IsPaused) return;
+        _gameTimer += dt;
 
-        // Salınım
-        if (_oscillating)
+        // ── 1. Temel Açısal Hız ──────────────────────────────
+        if (_oscillationEnabled)
         {
-            _oscTimer += dt;
-            float osc = MathF.Sin(_oscTimer * _oscFreq * MathF.PI * 2f);
-            _currentSpeed = _baseSpeed * (1f + osc * 0.4f);
+            _oscillationTime += dt;
+            _omegaCurrent = _omegaBase * (1 + 0.4f * MathF.Sin(
+                2 * MathF.PI * _oscillationFreqHz * _oscillationTime));
         }
         else
         {
-            _currentSpeed = _baseSpeed;
+            _omegaCurrent = _omegaBase;
         }
 
-        // Yön değişimi
-        if (_reversing)
+        // ── 2. Yön Değişimi ──────────────────────────────────
+        if (_directionReversalEnabled)
         {
-            _reverseTimer += dt;
-            if (_reverseTimer >= _reverseInterval)
+            _reversalTimer += dt;
+            if (_reversalTimer >= _reversalIntervalSec)
             {
-                _reverseTimer = 0;
-                _baseSpeed = -_baseSpeed;
+                _reversalTimer = 0f;
+                _omegaBase = -_omegaBase;
             }
         }
 
-        // Dönüş
-        RotationAngle += _currentSpeed * dt;
+        // ── 3. RotationBehavior ──────────────────────────────
+        float behaviorMult = 1f;
+        switch (CurrentBehavior)
+        {
+            case RotationBehavior.Accelerating:
+                _accelFactor = MathF.Min(2.5f, 1f + _gameTimer * 0.05f);
+                behaviorMult = _accelFactor;
+                break;
 
-        // Uçan iğne
+            case RotationBehavior.Decelerating:
+                _accelFactor = MathF.Max(0.3f, 1f - _gameTimer * 0.03f);
+                behaviorMult = _accelFactor;
+                break;
+
+            case RotationBehavior.SpeedBurst:
+                _burstTimer += dt;
+                float cyclePos = _burstTimer % BURST_CYCLE;
+                IsBurstActive = cyclePos < BURST_DURATION;
+                if (IsBurstActive) behaviorMult = BURST_MULTIPLIER;
+                break;
+
+            case RotationBehavior.SlowMotion:
+                float slowCycle = _gameTimer % 4f;
+                if (slowCycle < 1f) behaviorMult = 0.3f; // 1sn yavaş
+                break;
+
+            case RotationBehavior.FakeReverse:
+                _fakeReverseTimer += dt;
+                if (!_fakeReversed && _fakeReverseTimer > 3f)
+                {
+                    _fakeReversed = true;
+                    _omegaBase = -_omegaBase; // kısa ters
+                }
+                if (_fakeReversed && _fakeReverseTimer > 3.4f)
+                {
+                    _fakeReversed = false;
+                    _fakeReverseTimer = 0f;
+                    _omegaBase = -_omegaBase; // geri dön
+                }
+                break;
+
+            case RotationBehavior.Chaos:
+                // Accelerating + SpeedBurst + FakeReverse birleşimi
+                _accelFactor = 1f + 0.5f * MathF.Sin(_gameTimer * 0.7f);
+                _burstTimer += dt;
+                IsBurstActive = (_burstTimer % 2.5f) < 0.5f;
+                behaviorMult = _accelFactor * (IsBurstActive ? 1.8f : 1f);
+                break;
+        }
+
+        // ── 4. GameMode SpeedBurst (ayrı mod) ────────────────
+        if (CurrentMode == GameMode.SpeedBurst && CurrentBehavior != RotationBehavior.SpeedBurst)
+        {
+            _burstTimer += dt;
+            float cp = _burstTimer % BURST_CYCLE;
+            IsBurstActive = cp < BURST_DURATION;
+            if (IsBurstActive) behaviorMult *= BURST_MULTIPLIER;
+        }
+
+        // ── 5. Shrinking Modu ────────────────────────────────
+        if (CurrentMode == GameMode.Shrinking)
+        {
+            CircleScale = SHRINK_MIN + (1f - SHRINK_MIN) *
+                (0.5f + 0.5f * MathF.Cos(TWO_PI * _gameTimer / SHRINK_CYCLE));
+        }
+
+        // ── 6. Final Dönüş ──────────────────────────────────
+        RotationAngle = Normalize(RotationAngle + _omegaCurrent * behaviorMult * dt);
+
+        // ── 6. Kalkan Halkası Dönüşü ─────────────────────────
+        if (HasShield)
+            ShieldAngle = Normalize(ShieldAngle + _shieldSpeed * dt);
+
+        // ── 7. Hareketli Pre-Pin'ler ─────────────────────────
+        if (HasMovingPins && _prePinBaseAngles.Count > 0)
+        {
+            _prePinTimer += dt;
+            for (int i = 0; i < PrePlacedPins.Count && i < _prePinBaseAngles.Count; i++)
+            {
+                float offset = _prePinOscRange * MathF.Sin(TWO_PI * 0.4f * _prePinTimer + i * 1.5f);
+                PrePlacedPins[i] = Normalize(_prePinBaseAngles[i] + offset);
+            }
+        }
+
+        // ── 8. Uçan İğne ────────────────────────────────────
         if (IsPinFlying)
         {
-            FlyingPinY -= FlySpeed * dt;
+            FlyingPinY -= PIN_FLY_SPEED * dt;
+
+            // Kalkan kontrolü
+            if (HasShield && !_shieldPassed && FlyingPinY <= ShieldRadiusOffset)
+            {
+                float gapHalf = ShieldGapAngle / 2f;
+                if (AngleDistance(MathF.PI, ShieldAngle) > gapHalf)
+                {
+                    State = GameState.GameOver;
+                    OnShieldHit?.Invoke();
+                    OnCollision?.Invoke();
+                    return;
+                }
+                _shieldPassed = true;
+            }
 
             // İğne daireye ulaştı
-            if (FlyingPinY <= 0)
+            if (FlyingPinY <= 0f)
             {
                 IsPinFlying = false;
-
-                // Alttan geldiği için açı = π (aşağı), dönen daireye göre düzelt
                 float pinAngle = Normalize(MathF.PI - RotationAngle);
 
-                // Çarpışma kontrolü
                 if (HasCollision(pinAngle))
                 {
                     State = GameState.GameOver;
@@ -238,14 +468,23 @@ public class PinGameEngine
                     return;
                 }
 
-                // İğneyi sapla
-                PlacedPins.Add(pinAngle);
-                PinsRemaining--;
-                Score++;
-                if (Score > HighScore) HighScore = Score;
-                OnPinPlaced?.Invoke();
+                // Sapla
+                PlacePin(pinAngle);
 
-                // Seviye bitti mi?
+                // DoublePin: simetrik ikinci iğne (180° karşı)
+                if (CurrentMode == GameMode.DoublePin && HasSecondPin)
+                {
+                    float secondAngle = Normalize(pinAngle + MathF.PI);
+                    if (HasCollision(secondAngle))
+                    {
+                        State = GameState.GameOver;
+                        OnCollision?.Invoke();
+                        return;
+                    }
+                    PlacePin(secondAngle);
+                    HasSecondPin = false;
+                }
+
                 if (PinsRemaining <= 0)
                 {
                     State = GameState.LevelComplete;
@@ -255,20 +494,34 @@ public class PinGameEngine
         }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  İĞNE FIRLATMA
-    // ═══════════════════════════════════════════════════════════
+    private void PlacePin(float angle)
+    {
+        PlacedPins.Add(angle);
+        PinPlaceTimes.Add(_gameTimer);
+        PinsRemaining--;
+        Score += IsBossLevel ? 3 : 1;
+        if (Score > HighScore) HighScore = Score;
+        OnPinPlaced?.Invoke();
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  FIRLAMA / DURAKLATMA / ÇARPIŞMA                        ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     public void Shoot(float startY = 280f)
     {
         if (State != GameState.Playing || IsPinFlying || IsPaused) return;
+        if (PinsRemaining <= 0) return;
         IsPinFlying = true;
         FlyingPinY = startY;
-    }
+        _shieldPassed = false;
 
-    // ═══════════════════════════════════════════════════════════
-    //  DURAKLATMA / DEVAM
-    // ═══════════════════════════════════════════════════════════
+        // DoublePin modunda ikinci iğne flag'i
+        if (CurrentMode == GameMode.DoublePin && PinsRemaining >= 2)
+            HasSecondPin = true;
+        else
+            HasSecondPin = false;
+    }
 
     public void TogglePause()
     {
@@ -276,35 +529,20 @@ public class PinGameEngine
             IsPaused = !IsPaused;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  ÇARPIŞMA
-    // ═══════════════════════════════════════════════════════════
-
     private bool HasCollision(float newAngle)
     {
-        foreach (var a in PlacedPins)
-            if (AngleDist(newAngle, a) < CollisionThreshold) return true;
-        foreach (var a in PrePlacedPins)
-            if (AngleDist(newAngle, a) < CollisionThreshold) return true;
+        for (int i = 0; i < PlacedPins.Count; i++)
+            if (AngleDistance(newAngle, PlacedPins[i]) < _collisionThreshold)
+                return true;
+        for (int i = 0; i < PrePlacedPins.Count; i++)
+            if (AngleDistance(newAngle, PrePlacedPins[i]) < _collisionThreshold)
+                return true;
         return false;
     }
 
-    private static float AngleDist(float a, float b)
-    {
-        float d = MathF.Abs(Normalize(a) - Normalize(b));
-        return MathF.Min(d, MathF.PI * 2f - d);
-    }
-
-    private static float Normalize(float a)
-    {
-        a %= MathF.PI * 2f;
-        if (a < 0) a += MathF.PI * 2f;
-        return a;
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    //  DURUM YÖNETİMİ
-    // ═══════════════════════════════════════════════════════════
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║  DURUM YÖNETİMİ                                          ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     public void Restart() { Score = 0; StartLevel(1); }
 
@@ -314,43 +552,39 @@ public class PinGameEngine
         else State = GameState.Victory;
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  STATE RESTORE (kayıt sisteminden yükleme)
-    // ═══════════════════════════════════════════════════════════
-
-    /// <summary>Kayıtlı oyun durumunu tam olarak geri yükler.</summary>
     public void RestoreState(
         int level, int score, int highScore,
         List<float> placedPins, List<float> prePlacedPins,
         float rotationAngle, int pinsRemaining)
     {
-        // Seviyeyi başlat (config'i oluşturur)
         StartLevel(level);
-
-        // Üzerine kayıtlı state'i yaz
         Score = score;
         HighScore = highScore;
         RotationAngle = rotationAngle;
-
         PlacedPins.Clear();
         PlacedPins.AddRange(placedPins);
-
         PrePlacedPins.Clear();
         PrePlacedPins.AddRange(prePlacedPins);
-
         PinsRemaining = pinsRemaining;
         State = GameState.Playing;
         IsPinFlying = false;
     }
 }
 
-// ─── Yardımcı Tipler ────────────────────────────────────────
+// ╔═══════════════════════════════════════════════════════════════╗
+// ║  YARDIMCI TİPLER                                             ║
+// ╚═══════════════════════════════════════════════════════════════╝
 
 public enum GameState { Ready, Playing, LevelComplete, GameOver, Victory }
 
 public enum Difficulty { VeryEasy, Easy, Medium, Hard, VeryHard }
 
-internal record LevelCfg(
-    int Pins, float Speed, int PrePins,
-    bool Oscillate, float OscFreq,
-    bool Reverse, float ReverseInterval);
+public enum GameMode
+{
+    Normal,      // Standart tek iğne fırlatma
+    SpeedBurst,  // Daire ani hızlanıp yavaşlar
+    DoublePin,   // 2 iğne aynı anda simetrik
+    Invisible,   // İğneler 2sn sonra görünmez olur
+    Shrinking    // Daire periyodik küçülüp büyür
+}
+

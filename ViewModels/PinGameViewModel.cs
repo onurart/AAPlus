@@ -36,6 +36,7 @@ public partial class PinGameViewModel : ObservableObject
             _ = _save.SaveAsync();
         };
         Engine.OnLevelCleared += () => _audio.PlayLevelComplete();
+        Engine.OnShieldHit += () => _audio.PlayShieldHit();
     }
 
     public void Initialize()

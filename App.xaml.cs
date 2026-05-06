@@ -18,9 +18,9 @@ public partial class App : Application
         var window = new Window(new AppShell());
 
         // ─── Lifecycle Events ───────────────────────────────
-        window.Deactivated += (_, _) => OnSleep();
-        window.Stopped += (_, _) => OnSleep();
-        window.Destroying += (_, _) => OnSleep();
+        window.Deactivated += (_, _) => HandleSleep();
+        window.Stopped += (_, _) => HandleSleep();
+        window.Destroying += (_, _) => HandleSleep();
         window.Resumed += async (_, _) => await OnResumeAsync();
 
         // İlk açılışta kayıt yükle
@@ -39,7 +39,7 @@ public partial class App : Application
     }
 
     /// <summary>Uygulama arka plana alındığında veya kapanırken.</summary>
-    private void OnSleep()
+    private void HandleSleep()
     {
         System.Diagnostics.Debug.WriteLine("[App] Sleep — otomatik kayıt yapılıyor...");
 
