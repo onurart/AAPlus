@@ -1,6 +1,6 @@
 # Privacy Policy for AAPlus
 
-**Last Updated:** May 5, 2025
+**Last Updated:** May 12, 2026
 
 ## Overview
 AAPlus ("the App") is a free mobile game developed as a personal project. We respect your privacy and are committed to protecting any information related to your use of the App.

@@ -1,53 +1,64 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
-  <!-- Arka plan: Koyu gradient -->
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="45%" r="55%">
-      <stop offset="0%" stop-color="#1A1A2E"/>
-      <stop offset="100%" stop-color="#0A0A14"/>
+    <radialGradient id="bg" cx="50%" cy="45%" r="70%">
+      <stop offset="0%" stop-color="#2B2F3A"/>
+      <stop offset="55%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#05070D"/>
     </radialGradient>
+    <linearGradient id="pinGrad" x1="256" y1="58" x2="256" y2="454" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#B8C2D6"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="184" y1="170" x2="332" y2="342" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#69E7FF"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
   </defs>
-  <rect width="456" height="456" rx="96" fill="url(#bg)"/>
 
-  <!-- Ana daire -->
-  <circle cx="228" cy="210" r="80" fill="#16213E" stroke="#E94560" stroke-width="3" opacity="0.9"/>
+  <!-- App icon background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
 
-  <!-- İç daire -->
-  <circle cx="228" cy="210" r="60" fill="none" stroke="#E94560" stroke-width="1" opacity="0.3"/>
+  <!-- Subtle orbit glow -->
+  <circle cx="256" cy="256" r="154" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="10"/>
+  <circle cx="256" cy="256" r="118" stroke="#69E7FF" stroke-opacity="0.09" stroke-width="4"/>
 
-  <!-- "aa" yazısı -->
-  <text x="228" y="225" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif"
-        font-size="48" font-weight="300" fill="#FFFFFF" letter-spacing="4">aa</text>
+  <!-- Pins around the core -->
+  <g stroke="url(#pinGrad)" stroke-width="14" stroke-linecap="round" filter="url(#shadow)">
+    <line x1="256" y1="74" x2="256" y2="170"/>
+    <line x1="256" y1="342" x2="256" y2="438"/>
+    <line x1="74" y1="256" x2="170" y2="256"/>
+    <line x1="342" y1="256" x2="438" y2="256"/>
+    <line x1="127" y1="127" x2="196" y2="196"/>
+    <line x1="316" y1="316" x2="385" y2="385"/>
+    <line x1="385" y1="127" x2="316" y2="196"/>
+    <line x1="196" y1="316" x2="127" y2="385"/>
+  </g>
 
-  <!-- İğneler (üst) -->
-  <line x1="228" y1="130" x2="228" y2="70" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="228" cy="65" r="7" fill="#FFFFFF"/>
+  <!-- Pin heads -->
+  <g fill="#FFFFFF" opacity="0.95">
+    <circle cx="256" cy="68" r="11"/>
+    <circle cx="256" cy="444" r="11"/>
+    <circle cx="68" cy="256" r="11"/>
+    <circle cx="444" cy="256" r="11"/>
+    <circle cx="121" cy="121" r="10"/>
+    <circle cx="391" cy="391" r="10"/>
+    <circle cx="391" cy="121" r="10"/>
+    <circle cx="121" cy="391" r="10"/>
+  </g>
 
-  <!-- İğneler (sağ üst) -->
-  <line x1="285" y1="153" x2="325" y2="113" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="329" cy="109" r="7" fill="#FFFFFF"/>
+  <!-- Center core -->
+  <circle cx="256" cy="256" r="82" fill="url(#accent)" filter="url(#shadow)"/>
+  <circle cx="256" cy="256" r="62" fill="#0B1020" fill-opacity="0.9"/>
+  <circle cx="256" cy="256" r="48" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="4"/>
 
-  <!-- İğneler (sol üst) -->
-  <line x1="171" y1="153" x2="131" y2="113" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="127" cy="109" r="7" fill="#FFFFFF"/>
+  <!-- aaplus word mark -->
+  <text x="256" y="266" text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="800"
+        fill="#FFFFFF" letter-spacing="-2">aa+</text>
 
-  <!-- İğneler (sağ) -->
-  <line x1="308" y1="210" x2="368" y2="210" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="373" cy="210" r="7" fill="#FFFFFF"/>
-
-  <!-- İğneler (sol) -->
-  <line x1="148" y1="210" x2="88" y2="210" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="83" cy="210" r="7" fill="#FFFFFF"/>
-
-  <!-- Fırlatılacak iğne (alt) -->
-  <line x1="228" y1="350" x2="228" y2="400" stroke="#E94560" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
-  <circle cx="228" cy="405" r="7" fill="#E94560" opacity="0.8"/>
-
-  <!-- "+" sembolü -->
-  <text x="228" y="440" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif"
-        font-size="28" font-weight="700" fill="#E94560">+</text>
-
-  <!-- Parıltı efekti -->
-  <circle cx="228" cy="210" r="85" fill="none" stroke="#E94560" stroke-width="1" opacity="0.15"/>
-  <circle cx="228" cy="210" r="95" fill="none" stroke="#E94560" stroke-width="0.5" opacity="0.08"/>
+  <!-- Small shine -->
+  <path d="M203 190C219 174 239 166 263 166" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="8" stroke-linecap="round"/>
 </svg>

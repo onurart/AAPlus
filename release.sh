@@ -5,6 +5,10 @@
 # ═══════════════════════════════════════════════════════════
 cd "$(dirname "$0")"
 
+# JDK 21 ve Android SDK ayarla
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
+export ANDROID_SDK_ROOT="$HOME/Library/Android/sdk"
+
 KEYSTORE_FILE="aaplus.keystore"
 KEYSTORE_ALIAS="aaplus"
 
@@ -48,6 +52,7 @@ echo "🏗️  Release AAB build ediliyor..."
 dotnet publish AAPlus.csproj \
     -f net10.0-android \
     -c Release \
+    -p:AndroidSdkDirectory="$ANDROID_SDK_ROOT" \
     -p:AndroidKeyStore=true \
     -p:AndroidSigningKeyStore="$KEYSTORE_FILE" \
     -p:AndroidSigningKeyAlias="$KEYSTORE_ALIAS" \

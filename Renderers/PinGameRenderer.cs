@@ -218,8 +218,9 @@ public class PinGameRenderer
         // DoublePin gösterge: simetrik ikinci iğne sembolü
         if (e.CurrentMode == GameMode.DoublePin && e.PinsRemaining >= 2)
         {
-            using var dp = new SKPaint { IsAntialias = true, Color = t.PinColor.WithAlpha(60), TextSize = 16, TextAlign = SKTextAlign.Center };
-            c.DrawText("×2", cx + 20, botY, dp);
+            using var dp = new SKPaint { IsAntialias = true, Color = t.PinColor.WithAlpha(60) };
+            using var dpFont = new SKFont(SKTypeface.Default, 16);
+            c.DrawText("×2", cx + 20, botY, SKTextAlign.Center, dpFont, dp);
         }
     }
 
@@ -307,19 +308,18 @@ public class PinGameRenderer
 
         // Level numarası
         SKColor numCol = e.IsBossLevel ? SKColor.Parse("#FFD700") : t.Accent;
-        using var num = new SKPaint
-        {
-            IsAntialias = true, Color = numCol, TextSize = e.IsBossLevel ? 22 : 26,
-            TextAlign = SKTextAlign.Center,
-            Typeface = SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)
-        };
-        c.DrawText(e.CurrentLevel.ToString(), cx, cy + 8, num);
+        using var num = new SKPaint { IsAntialias = true, Color = numCol };
+        using var numFont = new SKFont(
+            SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright),
+            e.IsBossLevel ? 22 : 26);
+        c.DrawText(e.CurrentLevel.ToString(), cx, cy + 8, SKTextAlign.Center, numFont, num);
 
         if (e.IsBossLevel)
         {
-            using var bp = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#FFD700").WithAlpha(180), TextSize = 9, TextAlign = SKTextAlign.Center,
-                Typeface = SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-            c.DrawText("BOSS", cx, cy + 22, bp);
+            using var bp = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#FFD700").WithAlpha(180) };
+            using var bpFont = new SKFont(
+                SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Bold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright), 9);
+            c.DrawText("BOSS", cx, cy + 22, SKTextAlign.Center, bpFont, bp);
         }
     }
 
@@ -337,8 +337,9 @@ public class PinGameRenderer
         }
         if (rem > 6)
         {
-            using var tp = new SKPaint { IsAntialias = true, Color = t.Accent.WithAlpha(60), TextSize = 12, TextAlign = SKTextAlign.Center };
-            c.DrawText($"+{rem - 6}", cx, startY + 6 * 22f + 14, tp);
+            using var tp = new SKPaint { IsAntialias = true, Color = t.Accent.WithAlpha(60) };
+            using var tpFont = new SKFont(SKTypeface.Default, 12);
+            c.DrawText($"+{rem - 6}", cx, startY + 6 * 22f + 14, SKTextAlign.Center, tpFont, tp);
         }
     }
 
@@ -355,9 +356,10 @@ public class PinGameRenderer
         c.DrawRoundRect(bx, by, bw, 24, 12, 12, bg);
         using var bd = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1f, Color = col.WithAlpha(80) };
         c.DrawRoundRect(bx, by, bw, 24, 12, 12, bd);
-        using var tp = new SKPaint { IsAntialias = true, Color = col, TextSize = 11, TextAlign = SKTextAlign.Center,
-            Typeface = SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        c.DrawText(name, sz.Width / 2f, by + 16, tp);
+        using var tp2 = new SKPaint { IsAntialias = true, Color = col };
+        using var tp2Font = new SKFont(
+            SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.SemiBold, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright), 11);
+        c.DrawText(name, sz.Width / 2f, by + 16, SKTextAlign.Center, tp2Font, tp2);
 
         // Mod + davranış + mekanik ikonları
         if (e.State == GameState.Playing)
@@ -392,22 +394,25 @@ public class PinGameRenderer
 
             if (icons.Count > 0)
             {
-                using var ip = new SKPaint { IsAntialias = true, Color = DimText, TextSize = 11, TextAlign = SKTextAlign.Center };
-                c.DrawText(string.Join("  ", icons), sz.Width / 2f, by + 36, ip);
+                using var ip = new SKPaint { IsAntialias = true, Color = DimText };
+                using var ipFont = new SKFont(SKTypeface.Default, 11);
+                c.DrawText(string.Join("  ", icons), sz.Width / 2f, by + 36, SKTextAlign.Center, ipFont, ip);
             }
         }
     }
 
     private void DrawHud(SKCanvas c, SKSize sz, PinGameEngine e, LevelTheme t)
     {
-        using var lp = new SKPaint { IsAntialias = true, Color = DimText, TextSize = 12 };
-        c.DrawText($"LEVEL {e.CurrentLevel}/{PinGameEngine.MaxLevel}", 20, 28, lp);
-        using var rp = new SKPaint { IsAntialias = true, Color = DimText, TextSize = 12, TextAlign = SKTextAlign.Right };
-        c.DrawText($"BEST: {e.HighScore}", sz.Width - 20, 28, rp);
-        using var sp = new SKPaint { IsAntialias = true, Color = t.Accent.WithAlpha(180), TextSize = 12, TextAlign = SKTextAlign.Center };
-        c.DrawText($"SCORE: {e.Score}", sz.Width / 2f, 28, sp);
-        using var pp = new SKPaint { IsAntialias = true, Color = new SKColor(255, 255, 255, 60), TextSize = 20, TextAlign = SKTextAlign.Right };
-        c.DrawText("⏸", sz.Width - 18, 60, pp);
+        using var hudFont = new SKFont(SKTypeface.Default, 12);
+        using var lp = new SKPaint { IsAntialias = true, Color = DimText };
+        c.DrawText($"LEVEL {e.CurrentLevel}/{PinGameEngine.MaxLevel}", 20, 28, SKTextAlign.Left, hudFont, lp);
+        using var rp = new SKPaint { IsAntialias = true, Color = DimText };
+        c.DrawText($"BEST: {e.HighScore}", sz.Width - 20, 28, SKTextAlign.Right, hudFont, rp);
+        using var sp = new SKPaint { IsAntialias = true, Color = t.Accent.WithAlpha(180) };
+        c.DrawText($"SCORE: {e.Score}", sz.Width / 2f, 28, SKTextAlign.Center, hudFont, sp);
+        using var ppFont = new SKFont(SKTypeface.Default, 20);
+        using var pp = new SKPaint { IsAntialias = true, Color = new SKColor(255, 255, 255, 60) };
+        c.DrawText("⏸", sz.Width - 18, 60, SKTextAlign.Right, ppFont, pp);
     }
 
     // ── OVERLAY'LAR ──────────────────────────────────────────
@@ -417,11 +422,13 @@ public class PinGameRenderer
         using var ov = new SKPaint { Color = new SKColor(0, 0, 0, 180) };
         c.DrawRect(0, 0, sz.Width, sz.Height, ov);
         float cy = sz.Height / 2f;
-        using var tp = new SKPaint { IsAntialias = true, Color = SKColors.White, TextSize = 30, TextAlign = SKTextAlign.Center,
-            Typeface = SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        c.DrawText("DURAKLATILDI", sz.Width / 2f, cy - 10, tp);
-        using var sp = new SKPaint { IsAntialias = true, Color = DimText, TextSize = 14, TextAlign = SKTextAlign.Center };
-        c.DrawText("Devam etmek için dokun", sz.Width / 2f, cy + 25, sp);
+        using var tp = new SKPaint { IsAntialias = true, Color = SKColors.White };
+        using var tpFont = new SKFont(
+            SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright), 30);
+        c.DrawText("DURAKLATILDI", sz.Width / 2f, cy - 10, SKTextAlign.Center, tpFont, tp);
+        using var sp = new SKPaint { IsAntialias = true, Color = DimText };
+        using var spFont = new SKFont(SKTypeface.Default, 14);
+        c.DrawText("Devam etmek için dokun", sz.Width / 2f, cy + 25, SKTextAlign.Center, spFont, sp);
     }
 
     private void DrawGameOver(SKCanvas c, SKSize sz, PinGameEngine e, LevelTheme t)
@@ -431,16 +438,19 @@ public class PinGameRenderer
         c.DrawRect(0, 0, sz.Width, sz.Height, ov);
         float cy = sz.Height / 2f;
 
-        using var tp = new SKPaint { IsAntialias = true, Color = SKColors.White, TextSize = 34, TextAlign = SKTextAlign.Center,
-            Typeface = SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        c.DrawText("GAME OVER", sz.Width / 2f, cy - 45, tp);
+        using var tp = new SKPaint { IsAntialias = true, Color = SKColors.White };
+        using var tpFont = new SKFont(
+            SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright), 34);
+        c.DrawText("GAME OVER", sz.Width / 2f, cy - 45, SKTextAlign.Center, tpFont, tp);
 
-        using var sp = new SKPaint { IsAntialias = true, Color = new SKColor(255, 255, 255, 180), TextSize = 16, TextAlign = SKTextAlign.Center };
-        c.DrawText($"Level {e.CurrentLevel}  ·  Score {e.Score}", sz.Width / 2f, cy - 10, sp);
+        using var sp = new SKPaint { IsAntialias = true, Color = new SKColor(255, 255, 255, 180) };
+        using var spFont = new SKFont(SKTypeface.Default, 16);
+        c.DrawText($"Level {e.CurrentLevel}  ·  Score {e.Score}", sz.Width / 2f, cy - 10, SKTextAlign.Center, spFont, sp);
 
         float pulse = 0.5f + 0.5f * MathF.Sin(_time * 3f);
-        using var rp = new SKPaint { IsAntialias = true, Color = new SKColor(255, 255, 255, (byte)(pulse * 160)), TextSize = 14, TextAlign = SKTextAlign.Center };
-        c.DrawText("Tekrar denemek için dokun", sz.Width / 2f, cy + 50, rp);
+        using var rp = new SKPaint { IsAntialias = true, Color = new SKColor(255, 255, 255, (byte)(pulse * 160)) };
+        using var rpFont = new SKFont(SKTypeface.Default, 14);
+        c.DrawText("Tekrar denemek için dokun", sz.Width / 2f, cy + 50, SKTextAlign.Center, rpFont, rp);
     }
 
     private void DrawLevelComplete(SKCanvas c, SKSize sz, PinGameEngine e, float dt, LevelTheme t)
@@ -451,9 +461,10 @@ public class PinGameRenderer
         c.DrawRect(0, 0, sz.Width, sz.Height, fp);
         float scale = 0.5f + a * 0.5f;
         string sym = e.IsBossLevel ? "⚔" : "✓";
-        using var cp = new SKPaint { IsAntialias = true, Color = t.Accent.WithAlpha((byte)(a * 255)), TextSize = 48 * scale, TextAlign = SKTextAlign.Center,
-            Typeface = SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        c.DrawText(sym, sz.Width / 2f, sz.Height * 0.55f, cp);
+        using var cp = new SKPaint { IsAntialias = true, Color = t.Accent.WithAlpha((byte)(a * 255)) };
+        using var cpFont = new SKFont(
+            SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright), 48 * scale);
+        c.DrawText(sym, sz.Width / 2f, sz.Height * 0.55f, SKTextAlign.Center, cpFont, cp);
     }
 
     private void DrawVictory(SKCanvas c, SKSize sz)
@@ -461,13 +472,16 @@ public class PinGameRenderer
         using var ov = new SKPaint { Color = new SKColor(0, 0, 0, 200) };
         c.DrawRect(0, 0, sz.Width, sz.Height, ov);
         float cy = sz.Height / 2f;
-        using var cp = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#FFD700"), TextSize = 50, TextAlign = SKTextAlign.Center };
-        c.DrawText("🏆", sz.Width / 2f, cy - 30, cp);
-        using var tp = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#FFD700"), TextSize = 28, TextAlign = SKTextAlign.Center,
-            Typeface = SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright) };
-        c.DrawText("TEBRİKLER", sz.Width / 2f, cy + 15, tp);
-        using var sp = new SKPaint { IsAntialias = true, Color = SKColors.White, TextSize = 16, TextAlign = SKTextAlign.Center };
-        c.DrawText("250 seviye tamamlandı!", sz.Width / 2f, cy + 45, sp);
+        using var cp = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#FFD700") };
+        using var cpFont = new SKFont(SKTypeface.Default, 50);
+        c.DrawText("🏆", sz.Width / 2f, cy - 30, SKTextAlign.Center, cpFont, cp);
+        using var tp = new SKPaint { IsAntialias = true, Color = SKColor.Parse("#FFD700") };
+        using var tpFont = new SKFont(
+            SKTypeface.FromFamilyName("Helvetica Neue", SKFontStyleWeight.Light, SKFontStyleWidth.Normal, SKFontStyleSlant.Upright), 28);
+        c.DrawText("TEBRİKLER", sz.Width / 2f, cy + 15, SKTextAlign.Center, tpFont, tp);
+        using var sp = new SKPaint { IsAntialias = true, Color = SKColors.White };
+        using var spFont = new SKFont(SKTypeface.Default, 16);
+        c.DrawText("250 seviye tamamlandı!", sz.Width / 2f, cy + 45, SKTextAlign.Center, spFont, sp);
     }
 
     public bool IsPauseHit(float x, float y, SKSize sz) => x > sz.Width - 50 && y < 75;
